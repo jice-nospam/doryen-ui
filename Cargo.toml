@@ -1,0 +1,12 @@
+[package]
+name = "doryen-ui"
+version = "0.1.0"
+authors = ["jice <jice.nospam@gmail.com>"]
+edition = "2018"
+description = "An immediate ui toolkit for doryen-rs."
+license = "MIT"
+documentation = "https://docs.rs/doryen-ui"
+repository = "https://github.com/jice-nospam/doryen-ui"
+keywords = ["roguelike", "console", "imgui", "gui", "immediate"]
+
+[dependencies]
