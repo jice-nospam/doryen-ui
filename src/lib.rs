@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 #[derive(Clone, Copy)]
 pub enum ColorCode {
     Background,
@@ -22,13 +24,18 @@ pub struct Pos {
     pub y: Coord,
 }
 
+impl From<Rect> for Pos {
+    fn from(r: Rect) -> Self {
+        Self { x: r.x, y: r.y }
+    }
+}
 impl From<&Rect> for Pos {
     fn from(r: &Rect) -> Self {
         Self { x: r.x, y: r.y }
     }
 }
 
-#[derive(Default, Clone, Debug)]
+#[derive(Default, Clone, Copy, Debug)]
 pub struct Rect {
     pub x: Coord,
     pub y: Coord,
@@ -49,12 +56,14 @@ pub enum Command {
     Rect(Rect, ColorCode),
     Text(String, Pos, ColorCode),
     Frame(String, Rect, ColorCode),
+    CheckBox(Pos, bool, ColorCode),
 }
 
 pub trait Renderer {
     fn rectangle(&mut self, rect: &Rect, col: ColorCode);
     fn text(&mut self, pos: Pos, txt: &str, col: ColorCode);
     fn frame(&mut self, txt: &str, rect: &Rect, col: ColorCode);
+    fn checkbox(&mut self, pos: Pos, checked: bool, col: ColorCode);
 }
 
 pub const MOUSE_BUTTON_LEFT: usize = 1;
@@ -79,7 +88,9 @@ pub struct Context {
     mouse_down: usize,
     commands: Vec<Command>,
     layouts: Vec<Layout>,
+    last_area: Rect,
     cursor: Pos,
+    button_state: HashMap<usize, bool>,
 }
 
 impl Context {
@@ -106,6 +117,7 @@ impl Context {
         self.mouse_delta.y = self.mouse_pos.y - self.last_mouse_pos.y;
         self.cursor.x = 0;
         self.cursor.y = 0;
+        self.id = 0;
     }
     pub fn end(&mut self) {
         self.mouse_pressed = 0;
@@ -117,6 +129,7 @@ impl Context {
                 Command::Rect(r, col) => renderer.rectangle(r, *col),
                 Command::Text(txt, pos, col) => renderer.text(*pos, txt, *col),
                 Command::Frame(txt, r, col) => renderer.frame(txt, r, *col),
+                Command::CheckBox(pos, checked, col) => renderer.checkbox(*pos, *checked, *col),
             }
         }
         self.commands.clear();
@@ -148,20 +161,62 @@ impl Context {
         let id = self.next_id();
         let r = self.layout(Rect::new(0, 0, width, height.max(3)));
         self.update_control(id, &r);
-        self.draw_frame(&r, title, ColorCode::Background);
-        self.layouts.push(Layout::Vbox(width));
-        self.cursor.y+=1;
+        self.draw_frame(r, title, ColorCode::Background);
+        self.layouts.push(Layout::Vbox(width - 2));
+        self.cursor.x += 1;
+        self.cursor.y += 1;
     }
     pub fn frame_end(&mut self) {
         self.layouts.pop();
-        self.cursor.y+=1;
+        self.cursor.y += 1;
     }
     pub fn label(&mut self, label: &str, align: TextAlign) {
         let id = self.next_id();
         let r = self.layout(Rect::new(0, 0, label.len() as Coord, 1));
         self.update_control(id, &r);
-        self.draw_rect(&r, ColorCode::Background);
-        self.draw_text(&r, label, align, ColorCode::Text);
+        self.draw_rect(r, ColorCode::Background);
+        self.draw_text(r, label, align, ColorCode::Text);
+    }
+    pub fn checkbox(&mut self, label: &str, checked: bool) -> bool {
+        let padded_label = "  ".to_owned() + label;
+        let pressed = self.button(&padded_label, TextAlign::Left);
+        let checked = {
+            let checked = self.button_state.entry(self.id).or_insert(checked);
+            if pressed {
+                *checked = !*checked;
+            }
+            *checked
+        };
+        let pos: Pos = self.last_area.into();
+        self.draw_checkbox(pos, checked, ColorCode::Text);
+        checked
+    }
+    pub fn toggle(&mut self, label: &str, align: TextAlign, on: bool) -> bool {
+        let id = self.next_id();
+        let r = self.layout(Rect::new(0, 0, label.len() as Coord, 1));
+        self.update_control(id, &r);
+        let focus = self.focus == id;
+        let hover = self.hover == id;
+        let pressed = focus && self.mouse_pressed == MOUSE_BUTTON_LEFT;
+        let on = {
+            let on = self.button_state.entry(self.id).or_insert(on);
+            if pressed {
+                *on = !*on;
+            }
+            *on
+        };
+        self.draw_rect(
+            r,
+            if on || hover {
+                ColorCode::ButtonBackgroundHover
+            } else if focus {
+                ColorCode::ButtonBackgroundFocus
+            } else {
+                ColorCode::ButtonBackground
+            },
+        );
+        self.draw_text(r, label, align, ColorCode::Text);
+        on
     }
     pub fn button(&mut self, label: &str, align: TextAlign) -> bool {
         let id = self.next_id();
@@ -171,29 +226,30 @@ impl Context {
         let hover = self.hover == id;
         let pressed = focus && self.mouse_pressed == MOUSE_BUTTON_LEFT;
         self.draw_rect(
-            &r,
-            if focus {
-                ColorCode::ButtonBackgroundFocus
-            } else if hover {
+            r,
+            if hover {
                 ColorCode::ButtonBackgroundHover
+            } else if focus {
+                ColorCode::ButtonBackgroundFocus
             } else {
                 ColorCode::ButtonBackground
             },
         );
-        self.draw_text(&r, label, align, ColorCode::Text);
+        self.draw_text(r, label, align, ColorCode::Text);
         pressed
     }
-
-    fn draw_frame(&mut self, r: &Rect, title: &str, col: ColorCode) {
-        self.commands
-            .push(Command::Frame(title.to_owned(), (*r).clone(), col));
+    fn draw_checkbox(&mut self, p: Pos, checked: bool, col: ColorCode) {
+        self.commands.push(Command::CheckBox(p, checked, col));
+    }
+    fn draw_frame(&mut self, r: Rect, title: &str, col: ColorCode) {
+        self.commands.push(Command::Frame(title.to_owned(), r, col));
     }
 
-    fn draw_rect(&mut self, r: &Rect, col: ColorCode) {
-        self.commands.push(Command::Rect((*r).clone(), col));
+    fn draw_rect(&mut self, r: Rect, col: ColorCode) {
+        self.commands.push(Command::Rect(r, col));
     }
 
-    fn draw_text(&mut self, r: &Rect, txt: &str, align: TextAlign, col: ColorCode) {
+    fn draw_text(&mut self, r: Rect, txt: &str, align: TextAlign, col: ColorCode) {
         let mut p: Pos = r.into();
         let truncated_txt: String;
         let len = txt.len() as Coord;
@@ -257,6 +313,7 @@ impl Context {
             }
             None => (),
         }
+        self.last_area = r;
         r
     }
 }
@@ -319,6 +376,9 @@ mod tests {
             self.character[rx][ry2] = '3';
             self.character[rx2][ry2] = '4';
             self.text(rect.into(), txt, col);
+        }
+        fn checkbox(&mut self, pos: ui::Pos, _checked: bool, _col: ui::ColorCode) {
+            self.character[pos.x as usize][pos.y as usize] = '5';
         }
     }
 

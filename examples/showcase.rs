@@ -33,12 +33,15 @@ impl Showcase {
     }
     fn build_ui(&mut self) {
         self.ctx.begin();
-        self.ctx.frame_start("buttons", 15, 4);
-        if self.ctx.button("1", ui::TextAlign::Center) {
-            self.status = "button 1 pressed!".to_owned();
+        self.ctx.frame_start("buttons", 18, 5);
+        if self.ctx.button("button", ui::TextAlign::Center) {
+            self.status = "button pressed!".to_owned();
         }
-        if self.ctx.button("2", ui::TextAlign::Center) {
-            self.status = "button 2 pressed!".to_owned();
+        if self.ctx.toggle("toggle", ui::TextAlign::Center, false) {
+            self.status = "toggle switched!".to_owned();
+        }
+        if self.ctx.checkbox("checkbox", false) {
+            self.status = "checkbox switched!".to_owned();
         }
         self.ctx.frame_end();
         self.ctx.label(&self.status, ui::TextAlign::Left);
@@ -50,6 +53,10 @@ impl Showcase {
     }
     fn render_text(&self, api: &mut dyn DoryenApi, x: i32, y: i32, txt: &str, col: Color) {
         api.con().print(x, y, txt, TextAlign::Left, Some(col), None);
+    }
+    fn render_checkbox(&self, api: &mut dyn DoryenApi, x: i32, y: i32, checked: bool, col: Color) {
+        api.con().ascii(x, y, if checked { 225 } else { 224 });
+        api.con().fore(x, y, col);
     }
     fn render_frame(&self, api: &mut dyn DoryenApi, txt: &str, r: &ui::Rect, col: Color) {
         let con = api.con();
@@ -90,6 +97,9 @@ impl Engine for Showcase {
                 ui::Command::Frame(txt, r, col) => {
                     self.render_frame(api, &txt, &r, conv_color(col))
                 }
+                ui::Command::CheckBox(pos, checked, col) => {
+                    self.render_checkbox(api, pos.x, pos.y, checked, conv_color(col));
+                }
             }
         }
     }
@@ -101,8 +111,8 @@ fn conv_color(c: ui::ColorCode) -> Color {
         ui::ColorCode::Background => (10, 10, 20, 255),
         ui::ColorCode::Foreground => (200, 200, 255, 255),
         ui::ColorCode::ButtonBackground => (50, 60, 70, 255),
-        ui::ColorCode::ButtonBackgroundFocus => (100, 130, 170, 255),
-        ui::ColorCode::ButtonBackgroundHover => (100, 120, 160, 255),
+        ui::ColorCode::ButtonBackgroundHover => (100, 130, 170, 255),
+        ui::ColorCode::ButtonBackgroundFocus => (60, 80, 100, 255),
         ui::ColorCode::Text => (200, 220, 250, 255),
     }
 }
