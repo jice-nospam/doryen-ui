@@ -71,8 +71,9 @@ pub const MOUSE_BUTTON_RIGHT: usize = 2;
 pub const MOUSE_BUTTON_MIDDLE: usize = 4;
 
 pub enum Layout {
-    Vbox(Coord),
-    Hbox(Coord),
+    Fixed(Pos, Pos),
+    Vbox(Pos, Coord),
+    Hbox(Pos, Coord),
 }
 
 #[derive(Default)]
@@ -146,13 +147,13 @@ impl Context {
         self.id
     }
     pub fn vbox_start(&mut self, width: Coord) {
-        self.layouts.push(Layout::Vbox(width));
+        self.layouts.push(Layout::Vbox(self.cursor, width));
     }
     pub fn vbox_end(&mut self) {
         self.layouts.pop();
     }
     pub fn hbox_start(&mut self, height: Coord) {
-        self.layouts.push(Layout::Hbox(height));
+        self.layouts.push(Layout::Hbox(self.cursor, height));
     }
     pub fn hbox_end(&mut self) {
         self.layouts.pop();
@@ -162,13 +163,26 @@ impl Context {
         let r = self.layout(Rect::new(0, 0, width, height.max(3)));
         self.update_control(id, &r);
         self.draw_frame(r, title, ColorCode::Background);
-        self.layouts.push(Layout::Vbox(width - 2));
-        self.cursor.x += 1;
-        self.cursor.y += 1;
+        self.cursor.x = r.x + 1;
+        self.cursor.y = r.y + 1;
+        self.layouts.push(Layout::Vbox(self.cursor, width - 2));
     }
     pub fn frame_end(&mut self) {
         self.layouts.pop();
         self.cursor.y += 1;
+        self.cursor.x -= 1;
+    }
+    pub fn popup_start(&mut self, title: &str, x: Coord, y: Coord, width: Coord, height: Coord) {
+        self.layouts.push(Layout::Fixed(self.cursor, Pos { x, y }));
+        self.frame_start(title, width, height);
+    }
+    pub fn popup_end(&mut self) -> bool {
+        let ret = self.button("Ok", TextAlign::Center);
+        self.frame_end();
+        if let Some(Layout::Fixed(oldpos, _)) = self.layouts.pop() {
+            self.cursor = oldpos;
+        }
+        ret
     }
     pub fn label(&mut self, label: &str, align: TextAlign) {
         let id = self.next_id();
@@ -197,7 +211,7 @@ impl Context {
         self.update_control(id, &r);
         let focus = self.focus == id;
         let hover = self.hover == id;
-        let pressed = focus && self.mouse_pressed == MOUSE_BUTTON_LEFT;
+        let pressed = focus && hover && self.mouse_pressed == MOUSE_BUTTON_LEFT;
         let on = {
             let on = self.button_state.entry(self.id).or_insert(on);
             if pressed {
@@ -300,16 +314,27 @@ impl Context {
         self.updated_focus = true;
     }
 
-    fn layout(&mut self, r: Rect) -> Rect {
-        let mut r = Rect::new(r.x + self.cursor.x, r.y + self.cursor.y, r.w, r.h);
+    fn layout(&mut self, local: Rect) -> Rect {
+        let mut r = Rect::new(
+            local.x + self.cursor.x,
+            local.y + self.cursor.y,
+            local.w,
+            local.h,
+        );
         match self.layouts.last() {
-            Some(Layout::Vbox(w)) => {
+            Some(Layout::Fixed(_, Pos { x, y })) => {
+                r.x = local.x + x;
+                r.y = local.y + y;
+            }
+            Some(Layout::Vbox(pos, w)) => {
                 r.w = *w;
+                self.cursor.x = pos.x;
                 self.cursor.y += 1;
             }
-            Some(Layout::Hbox(h)) => {
+            Some(Layout::Hbox(pos, h)) => {
                 r.h = *h;
                 self.cursor.x += r.w;
+                self.cursor.y = pos.y;
             }
             None => (),
         }

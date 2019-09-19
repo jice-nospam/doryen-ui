@@ -11,6 +11,7 @@ const CONSOLE_HEIGHT: u32 = 50;
 struct Showcase {
     ctx: ui::Context,
     status: String,
+    button_popup: bool,
 }
 
 impl Showcase {
@@ -35,14 +36,16 @@ impl Showcase {
         self.ctx.begin();
         self.ctx.frame_start("buttons", 18, 5);
         if self.ctx.button("button", ui::TextAlign::Center) {
-            self.status = "button pressed!".to_owned();
+            self.button_popup = true;
         }
-        if self.ctx.toggle("toggle", ui::TextAlign::Center, false) {
-            self.status = "toggle switched!".to_owned();
+        if self.button_popup {
+            self.ctx.popup_start("button pressed!", 10, 10, 19, 3);
+            if self.ctx.popup_end() {
+                self.button_popup = false;
+            }
         }
-        if self.ctx.checkbox("checkbox", false) {
-            self.status = "checkbox switched!".to_owned();
-        }
+        self.ctx.toggle("toggle", ui::TextAlign::Center, false);
+        self.ctx.checkbox("checkbox", false);
         self.ctx.frame_end();
         self.ctx.label(&self.status, ui::TextAlign::Left);
         self.ctx.end();
@@ -88,6 +91,8 @@ impl Engine for Showcase {
         self.build_ui();
     }
     fn render(&mut self, api: &mut dyn DoryenApi) {
+        api.con()
+            .clear(None, Some((0, 0, 0, 255)), Some(' ' as u16));
         for c in self.ctx.get_render_commands() {
             match c {
                 ui::Command::Rect(r, col) => self.render_rect(api, &r, conv_color(col)),
