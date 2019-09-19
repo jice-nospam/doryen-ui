@@ -1,6 +1,12 @@
 use std::collections::HashMap;
 
-#[derive(Clone, Copy)]
+#[cfg(feature = "doryen")]
+mod doryen;
+
+#[cfg(feature = "doryen")]
+pub use doryen::*;
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub enum ColorCode {
     Background,
     Foreground,
@@ -101,7 +107,6 @@ impl Context {
             ..Default::default()
         }
     }
-
     pub fn input_mouse_pos(&mut self, pos: Pos) {
         self.mouse_pos = pos;
     }

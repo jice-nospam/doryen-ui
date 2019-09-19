@@ -10,6 +10,10 @@ repository = "https://github.com/jice-nospam/doryen-ui"
 keywords = ["roguelike", "console", "imgui", "gui", "immediate"]
 
 [dependencies]
+doryen-rs={ version="*", optional=true }
+
+[features]
+doryen=["doryen-rs"]
 
 [dev-dependencies]
 doryen-rs="*"
