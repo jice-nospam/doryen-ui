@@ -19,7 +19,7 @@ cargo run --example showcase --features=doryen
 ```
 rustup target install wasm32-unknown-unknown
 cargo install cargo-web
-cargo web start --example showcase --features=doryen
+cargo web start --features=doryen --example showcase
 ```
 
 # usage

@@ -19,7 +19,11 @@ pub fn update_doryen_input_data(api: &mut dyn DoryenApi, ctx: &mut Context) {
     }
 }
 
-pub fn render_doryen<S: BuildHasher>(con: &mut Console, ctx: &mut Context, colormap: &HashMap<ColorCode, Color, S>) {
+pub fn render_doryen<S: BuildHasher>(
+    con: &mut Console,
+    ctx: &mut Context,
+    colormap: &HashMap<ColorCode, Color, S>,
+) {
     for c in ctx.get_render_commands() {
         match c {
             Command::Rect(r, col) => render_rect(con, &r, conv_color(col, colormap)),

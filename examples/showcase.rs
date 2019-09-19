@@ -12,7 +12,6 @@ const CONSOLE_HEIGHT: u32 = 50;
 #[derive(Default)]
 struct Showcase {
     ctx: ui::Context,
-    status: String,
     button_popup: bool,
     colormap: HashMap<ui::ColorCode, Color>,
 }
@@ -23,20 +22,45 @@ impl Showcase {
     }
     fn build_ui(&mut self) {
         self.ctx.begin();
-        self.ctx.frame_start("buttons", 18, 5);
+        self.ctx.frame_begin("buttons", 17, 5, Default::default());
         if self.ctx.button("button", ui::TextAlign::Center) {
             self.button_popup = true;
         }
         if self.button_popup {
-            self.ctx.popup_start("button pressed!", 10, 10, 19, 3);
+            self.ctx
+                .popup_begin("button pressed!", 20, 10, 19, 3, Default::default());
             if self.ctx.popup_end() {
                 self.button_popup = false;
             }
         }
-        self.ctx.toggle("toggle", ui::TextAlign::Center, false);
+        self.ctx
+            .toggle("toggle", ui::TextAlign::Center, false, None);
         self.ctx.checkbox("checkbox", false);
         self.ctx.frame_end();
-        self.ctx.label(&self.status, ui::TextAlign::Left);
+        self.ctx.frame_begin(
+            "margin",
+            17,
+            7,
+            ui::LayoutOptions {
+                margin: 2,
+                ..Default::default()
+            },
+        );
+        self.ctx.toggle("margin", ui::TextAlign::Center, true, None);
+        self.ctx.frame_end();
+        self.ctx.frame_begin("padding", 17, 3, Default::default());
+        self.ctx.hbox_begin(
+            1,
+            ui::LayoutOptions {
+                padding: 6,
+                ..Default::default()
+            },
+        );
+        self.ctx.toggle("1", ui::TextAlign::Left, true, None);
+        self.ctx.toggle("2", ui::TextAlign::Left, true, None);
+        self.ctx.toggle("3", ui::TextAlign::Left, true, None);
+        self.ctx.hbox_end();
+        self.ctx.frame_end();
         self.ctx.end();
     }
 }

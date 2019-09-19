@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 #[cfg(feature = "doryen")]
 mod doryen;
@@ -82,6 +82,12 @@ pub enum Layout {
     Hbox(Pos, Coord),
 }
 
+#[derive(Copy, Clone, Debug, Default)]
+pub struct LayoutOptions {
+    pub margin: Coord,
+    pub padding: Coord,
+}
+
 #[derive(Default)]
 pub struct Context {
     id: usize,
@@ -97,7 +103,10 @@ pub struct Context {
     layouts: Vec<Layout>,
     last_area: Rect,
     cursor: Pos,
+    paddings: Vec<Coord>,
+    margins: Vec<Coord>,
     button_state: HashMap<usize, bool>,
+    toggle_group: HashMap<usize, HashSet<usize>>,
 }
 
 impl Context {
@@ -117,13 +126,14 @@ impl Context {
     pub fn input_mouse_up(&mut self, button: usize) {
         self.mouse_down &= !button;
     }
-
     pub fn begin(&mut self) {
         self.mouse_delta.x = self.mouse_pos.x - self.last_mouse_pos.x;
         self.mouse_delta.y = self.mouse_pos.y - self.last_mouse_pos.y;
         self.cursor.x = 0;
         self.cursor.y = 0;
         self.id = 0;
+        self.paddings.clear();
+        self.margins.clear();
     }
     pub fn end(&mut self) {
         self.mouse_pressed = 0;
@@ -151,42 +161,76 @@ impl Context {
         self.id += 1;
         self.id
     }
-    pub fn vbox_start(&mut self, width: Coord) {
-        self.layouts.push(Layout::Vbox(self.cursor, width));
+    pub fn vbox_begin(&mut self, width: Coord, opt: LayoutOptions) {
+        self.margins.push(opt.margin);
+        self.paddings.push(opt.padding);
+        self.cursor.x += opt.margin;
+        self.cursor.y += opt.margin;
+        self.layouts
+            .push(Layout::Vbox(self.cursor, width - 2 * opt.margin));
     }
     pub fn vbox_end(&mut self) {
         self.layouts.pop();
+        let margin = self.margins.pop().unwrap();
+        let padding = self.paddings.pop().unwrap();
+        self.cursor.x -= margin;
+        self.cursor.y += margin - padding;
     }
-    pub fn hbox_start(&mut self, height: Coord) {
-        self.layouts.push(Layout::Hbox(self.cursor, height));
+    pub fn hbox_begin(&mut self, height: Coord, opt: LayoutOptions) {
+        self.margins.push(opt.margin);
+        self.paddings.push(opt.padding);
+        self.cursor.x += opt.margin;
+        self.cursor.y += opt.margin;
+        self.layouts
+            .push(Layout::Hbox(self.cursor, height - 2 * opt.margin));
     }
     pub fn hbox_end(&mut self) {
-        self.layouts.pop();
+        let margin = self.margins.pop().unwrap();
+        if let Some(Layout::Hbox(pos, h)) = self.layouts.pop() {
+            self.cursor.x = pos.x;
+            self.cursor.y = pos.y + h + 2 * margin;
+        }
     }
-    pub fn frame_start(&mut self, title: &str, width: Coord, height: Coord) {
+    pub fn fixed_layout_begin(&mut self, x: Coord, y: Coord) {
+        let new_pos = Pos { x, y };
+        self.layouts.push(Layout::Fixed(self.cursor, new_pos));
+        self.cursor = new_pos;
+    }
+    pub fn fixed_layout_end(&mut self) {
+        if let Some(Layout::Fixed(oldpos, _)) = self.layouts.pop() {
+            self.cursor = oldpos;
+        }
+    }
+    pub fn frame_begin(&mut self, title: &str, width: Coord, height: Coord, opt: LayoutOptions) {
         let id = self.next_id();
         let r = self.layout(Rect::new(0, 0, width, height.max(3)));
         self.update_control(id, &r);
         self.draw_frame(r, title, ColorCode::Background);
         self.cursor.x = r.x + 1;
         self.cursor.y = r.y + 1;
-        self.layouts.push(Layout::Vbox(self.cursor, width - 2));
+        self.vbox_begin(width - 2, opt);
     }
     pub fn frame_end(&mut self) {
-        self.layouts.pop();
+        self.vbox_end();
         self.cursor.y += 1;
         self.cursor.x -= 1;
     }
-    pub fn popup_start(&mut self, title: &str, x: Coord, y: Coord, width: Coord, height: Coord) {
-        self.layouts.push(Layout::Fixed(self.cursor, Pos { x, y }));
-        self.frame_start(title, width, height);
+    pub fn popup_begin(
+        &mut self,
+        title: &str,
+        x: Coord,
+        y: Coord,
+        width: Coord,
+        height: Coord,
+        opt: LayoutOptions,
+    ) {
+        self.fixed_layout_begin(x, y);
+        self.frame_begin(title, width, height, opt);
     }
     pub fn popup_end(&mut self) -> bool {
         let ret = self.button("Ok", TextAlign::Center);
         self.frame_end();
-        if let Some(Layout::Fixed(oldpos, _)) = self.layouts.pop() {
-            self.cursor = oldpos;
-        }
+        self.fixed_layout_end();
         ret
     }
     pub fn label(&mut self, label: &str, align: TextAlign) {
@@ -210,26 +254,47 @@ impl Context {
         self.draw_checkbox(pos, checked, ColorCode::Text);
         checked
     }
-    pub fn toggle(&mut self, label: &str, align: TextAlign, on: bool) -> bool {
+    fn add_group_id(&mut self, group: usize, id: usize) {
+        let ids = self.toggle_group.entry(group).or_insert_with(HashSet::new);
+        ids.insert(id);
+    }
+    fn disable_toggle_group(&mut self, group: usize) {
+        for id in self.toggle_group.get(&group).unwrap() {
+            self.button_state.insert(*id, false);
+        }
+    }
+    pub fn toggle(
+        &mut self,
+        label: &str,
+        align: TextAlign,
+        on: bool,
+        group: Option<usize>,
+    ) -> bool {
         let id = self.next_id();
+        if let Some(group) = group {
+            self.add_group_id(group, id);
+        }
         let r = self.layout(Rect::new(0, 0, label.len() as Coord, 1));
         self.update_control(id, &r);
         let focus = self.focus == id;
         let hover = self.hover == id;
         let pressed = focus && hover && self.mouse_pressed == MOUSE_BUTTON_LEFT;
-        let on = {
-            let on = self.button_state.entry(self.id).or_insert(on);
-            if pressed {
-                *on = !*on;
+        let mut on = *self.button_state.get(&self.id).unwrap_or(&on);
+        if pressed {
+            if !on {
+                if let Some(group) = group {
+                    self.disable_toggle_group(group);
+                }
             }
-            *on
-        };
+            on = !on;
+        }
+        self.button_state.insert(id, on);
         self.draw_rect(
             r,
-            if on || hover {
-                ColorCode::ButtonBackgroundHover
-            } else if focus {
+            if on {
                 ColorCode::ButtonBackgroundFocus
+            } else if focus || hover {
+                ColorCode::ButtonBackgroundHover
             } else {
                 ColorCode::ButtonBackground
             },
@@ -320,6 +385,7 @@ impl Context {
     }
 
     fn layout(&mut self, local: Rect) -> Rect {
+        let padding = self.paddings.last().unwrap_or(&0);
         let mut r = Rect::new(
             local.x + self.cursor.x,
             local.y + self.cursor.y,
@@ -334,11 +400,11 @@ impl Context {
             Some(Layout::Vbox(pos, w)) => {
                 r.w = *w;
                 self.cursor.x = pos.x;
-                self.cursor.y += 1;
+                self.cursor.y += 1 + padding;
             }
             Some(Layout::Hbox(pos, h)) => {
                 r.h = *h;
-                self.cursor.x += r.w;
+                self.cursor.x += r.w + padding;
                 self.cursor.y = pos.y;
             }
             None => (),
@@ -421,5 +487,73 @@ mod tests {
         ctx.end();
         ctx.render(&mut rend);
         assert!(rend.assert("test", 0, 0));
+    }
+    #[test]
+    fn test_vbox() {
+        let mut rend = AsciiRenderer::new();
+        let mut ctx = ui::Context::new();
+        ctx.begin();
+        ctx.vbox_begin(1, Default::default());
+        ctx.label("1", ui::TextAlign::Left);
+        ctx.label("2", ui::TextAlign::Left);
+        ctx.vbox_end();
+        ctx.end();
+        ctx.render(&mut rend);
+        assert!(rend.assert("1", 0, 0));
+        assert!(rend.assert("2", 0, 1));
+    }
+    #[test]
+    fn test_hbox() {
+        let mut rend = AsciiRenderer::new();
+        let mut ctx = ui::Context::new();
+        ctx.begin();
+        ctx.hbox_begin(1, Default::default());
+        ctx.label("1", ui::TextAlign::Left);
+        ctx.label("2", ui::TextAlign::Left);
+        ctx.hbox_end();
+        ctx.end();
+        ctx.render(&mut rend);
+        assert!(rend.assert("1", 0, 0));
+        assert!(rend.assert("2", 1, 0));
+    }
+    #[test]
+    fn test_margin() {
+        let mut rend = AsciiRenderer::new();
+        let mut ctx = ui::Context::new();
+        ctx.begin();
+        ctx.vbox_begin(
+            3,
+            ui::LayoutOptions {
+                margin: 1,
+                ..Default::default()
+            },
+        );
+        ctx.label("1", ui::TextAlign::Left);
+        ctx.label("2", ui::TextAlign::Left);
+        ctx.vbox_end();
+        ctx.end();
+        ctx.render(&mut rend);
+        assert!(rend.assert("1", 1, 1));
+        assert!(rend.assert("2", 1, 2));
+    }
+    #[test]
+    fn test_padding() {
+        let mut rend = AsciiRenderer::new();
+        let mut ctx = ui::Context::new();
+        ctx.begin();
+        ctx.vbox_begin(
+            3,
+            ui::LayoutOptions {
+                padding: 1,
+                ..Default::default()
+            },
+        );
+        ctx.label("1", ui::TextAlign::Left);
+        ctx.label("2", ui::TextAlign::Left);
+        ctx.vbox_end();
+        ctx.end();
+        ctx.render(&mut rend);
+        assert!(rend.assert("1", 0, 0));
+        assert!(rend.assert("2", 0, 2));
     }
 }
