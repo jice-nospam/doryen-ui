@@ -13,6 +13,7 @@ keywords = ["roguelike", "console", "imgui", "gui", "immediate"]
 doryen-rs={ version="*", optional=true }
 
 [features]
+default=["doryen"]
 doryen=["doryen-rs"]
 
 [dev-dependencies]

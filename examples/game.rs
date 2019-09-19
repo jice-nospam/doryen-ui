@@ -13,6 +13,7 @@ const CONSOLE_HEIGHT: u32 = 50;
 struct Astacia {
     ctx: ui::Context,
     colormap: HashMap<ui::ColorCode, Color>,
+    option_panel: bool,
 }
 
 impl Astacia {
@@ -21,66 +22,83 @@ impl Astacia {
     }
     fn build_ui(&mut self) {
         self.ctx.begin();
-        self.ctx.fixed_layout_begin(5, 30);
         self.ctx.vbox_begin(
             15,
+            0,
             ui::LayoutOptions {
                 padding: 1,
+                pos: Some((5, 30)),
                 ..Default::default()
             },
         );
-        if self
-            .ctx
-            .toggle("  New game", ui::TextAlign::Left, false, Some(1))
-        {}
-        if self
-            .ctx
-            .toggle("  Continue", ui::TextAlign::Left, false, Some(1))
-        {}
-        if self
-            .ctx
-            .toggle("  Options", ui::TextAlign::Left, false, Some(1))
-        {
-            self.ctx.fixed_layout_begin(25, 5);
-            self.ctx.frame_begin(
-                "Options",
-                50,
-                40,
-                ui::LayoutOptions {
-                    margin: 3,
-                    padding: 1,
-                    ..Default::default()
-                },
-            );
-            self.ctx.label("Game settings", ui::TextAlign::Left);
-            self.ctx.label("Font :", ui::TextAlign::Right);
-            self.ctx.label("FPS :", ui::TextAlign::Right);
-            self.ctx.label("Resolution :", ui::TextAlign::Right);
-
-            self.ctx.label("Controls", ui::TextAlign::Left);
-            self.ctx.label("Move up :", ui::TextAlign::Right);
-            self.ctx.label("Move down :", ui::TextAlign::Right);
-            self.ctx.label("Move left :", ui::TextAlign::Right);
-            self.ctx.label("Move right :", ui::TextAlign::Right);
-            self.ctx.label("Equipment :", ui::TextAlign::Right);
-            self.ctx.label("Inventory :", ui::TextAlign::Right);
-            self.ctx.label("Talk to NPC :", ui::TextAlign::Right);
-            self.ctx.label("Show message :", ui::TextAlign::Right);
-            self.ctx.label("Return / Menu :", ui::TextAlign::Right);
-            self.ctx.hbox_begin(1, Default::default());
-            if self.ctx.button("   Ok   ", ui::TextAlign::Left) {}
-            if self.ctx.button(" Cancel ", ui::TextAlign::Left) {}
-            self.ctx.hbox_end();
-            self.ctx.frame_end();
-            self.ctx.fixed_layout_end();
+        let toggle_opt = ui::ToggleOptions {
+            group: Some(1),
+            ..Default::default()
+        };
+        if self.ctx.toggle("  New game", toggle_opt) {}
+        if self.ctx.toggle("  Continue", toggle_opt) {}
+        if self.ctx.toggle("  Options", toggle_opt) {
+            self.option_panel = true;
         }
-        if self
-            .ctx
-            .toggle("  Quit game", ui::TextAlign::Left, false, Some(1))
-        {}
+        if self.option_panel {
+            self.options_panel();
+        }
+        if self.ctx.toggle("  Quit game", toggle_opt) {}
         self.ctx.vbox_end();
-        self.ctx.fixed_layout_end();
         self.ctx.end();
+    }
+
+    fn options_panel(&mut self) {
+        let ctx = &mut self.ctx;
+        ctx.frame_begin(
+            "Options",
+            50,
+            40,
+            ui::LayoutOptions {
+                margin: 3,
+                padding: 1,
+                pos: Some((25, 5)),
+            },
+        );
+        ctx.label("Game settings", ui::TextAlign::Left);
+        ctx.hbox_begin(35, 3, Default::default());
+        {
+            ctx.vbox_begin(15, 3, Default::default());
+            {
+                ctx.label("Font :", ui::TextAlign::Right);
+                ctx.label("FPS :", ui::TextAlign::Right);
+                ctx.label("Resolution :", ui::TextAlign::Right);
+            }
+            ctx.vbox_end();
+            ctx.vbox_begin(20, 3, Default::default());
+            {
+                ctx.label("[ arial_8x8.png ]", ui::TextAlign::Left);
+                ctx.label("[ 30 ]", ui::TextAlign::Left);
+                ctx.label("[ 128x96 ]", ui::TextAlign::Left);
+            }
+            ctx.vbox_end();
+        }
+        ctx.hbox_end();
+
+        ctx.label("Controls", ui::TextAlign::Left);
+        ctx.label("Move up :", ui::TextAlign::Right);
+        ctx.label("Move down :", ui::TextAlign::Right);
+        ctx.label("Move left :", ui::TextAlign::Right);
+        ctx.label("Move right :", ui::TextAlign::Right);
+        ctx.label("Equipment :", ui::TextAlign::Right);
+        ctx.label("Inventory :", ui::TextAlign::Right);
+        ctx.label("Talk to NPC :", ui::TextAlign::Right);
+        ctx.label("Show message :", ui::TextAlign::Right);
+        ctx.label("Return / Menu :", ui::TextAlign::Right);
+        ctx.hbox_begin(0, 1, Default::default());
+        if ctx.button("   Ok   ", ui::TextAlign::Left) {
+            self.option_panel = false;
+        }
+        if ctx.button(" Cancel ", ui::TextAlign::Left) {
+            self.option_panel = false;
+        }
+        ctx.hbox_end();
+        ctx.frame_end();
     }
 }
 

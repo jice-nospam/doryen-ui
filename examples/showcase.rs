@@ -21,23 +21,34 @@ impl Showcase {
         Default::default()
     }
     fn build_ui(&mut self) {
-        self.ctx.begin();
-        self.ctx.frame_begin("buttons", 17, 5, Default::default());
-        if self.ctx.button("button", ui::TextAlign::Center) {
+        let ctx = &mut self.ctx;
+        ctx.begin();
+        ctx.frame_begin("buttons", 17, 5, Default::default());
+        if ctx.button("button", ui::TextAlign::Center) {
             self.button_popup = true;
         }
         if self.button_popup {
-            self.ctx
-                .popup_begin("button pressed!", 20, 10, 19, 3, Default::default());
-            if self.ctx.popup_end() {
+            ctx.popup_begin(
+                "button pressed!",
+                19,
+                3,
+                ui::LayoutOptions {
+                    pos: Some((20, 10)),
+                    ..Default::default()
+                },
+            );
+            if ctx.popup_end() {
                 self.button_popup = false;
             }
         }
-        self.ctx
-            .toggle("toggle", ui::TextAlign::Center, false, None);
-        self.ctx.checkbox("checkbox", false);
-        self.ctx.frame_end();
-        self.ctx.frame_begin(
+        let toggle_opt = ui::ToggleOptions {
+            align: ui::TextAlign::Center,
+            ..Default::default()
+        };
+        ctx.toggle("toggle", toggle_opt);
+        ctx.checkbox("checkbox", false);
+        ctx.frame_end();
+        ctx.frame_begin(
             "margin",
             17,
             7,
@@ -46,22 +57,23 @@ impl Showcase {
                 ..Default::default()
             },
         );
-        self.ctx.toggle("margin", ui::TextAlign::Center, true, None);
-        self.ctx.frame_end();
-        self.ctx.frame_begin("padding", 17, 3, Default::default());
-        self.ctx.hbox_begin(
+        ctx.toggle("margin", toggle_opt);
+        ctx.frame_end();
+        ctx.frame_begin("padding", 17, 3, Default::default());
+        ctx.hbox_begin(
+            0,
             1,
             ui::LayoutOptions {
                 padding: 6,
                 ..Default::default()
             },
         );
-        self.ctx.toggle("1", ui::TextAlign::Left, true, None);
-        self.ctx.toggle("2", ui::TextAlign::Left, true, None);
-        self.ctx.toggle("3", ui::TextAlign::Left, true, None);
-        self.ctx.hbox_end();
-        self.ctx.frame_end();
-        self.ctx.end();
+        ctx.toggle("1", toggle_opt);
+        ctx.toggle("2", toggle_opt);
+        ctx.toggle("3", toggle_opt);
+        ctx.hbox_end();
+        ctx.frame_end();
+        ctx.end();
     }
 }
 

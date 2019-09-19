@@ -3,8 +3,12 @@ use std::collections::{HashMap, HashSet};
 #[cfg(feature = "doryen")]
 mod doryen;
 
+mod layout;
+
 #[cfg(feature = "doryen")]
 pub use doryen::*;
+
+use layout::*;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub enum ColorCode {
@@ -16,15 +20,21 @@ pub enum ColorCode {
     Text,
 }
 
+#[derive(Copy, Clone, Debug)]
 pub enum TextAlign {
     Left,
     Center,
     Right,
 }
+impl Default for TextAlign {
+    fn default() -> Self {
+        TextAlign::Left
+    }
+}
 
 pub type Coord = i32;
 
-#[derive(Clone, Copy, Default, Debug)]
+#[derive(Clone, Copy, Default, Debug, PartialEq, Eq)]
 pub struct Pos {
     pub x: Coord,
     pub y: Coord,
@@ -41,7 +51,7 @@ impl From<&Rect> for Pos {
     }
 }
 
-#[derive(Default, Clone, Copy, Debug)]
+#[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Rect {
     pub x: Coord,
     pub y: Coord,
@@ -58,6 +68,7 @@ impl Rect {
     }
 }
 
+#[derive(Debug)]
 pub enum Command {
     Rect(Rect, ColorCode),
     Text(String, Pos, ColorCode),
@@ -76,16 +87,18 @@ pub const MOUSE_BUTTON_LEFT: usize = 1;
 pub const MOUSE_BUTTON_RIGHT: usize = 2;
 pub const MOUSE_BUTTON_MIDDLE: usize = 4;
 
-pub enum Layout {
-    Fixed(Pos, Pos),
-    Vbox(Pos, Coord),
-    Hbox(Pos, Coord),
-}
-
 #[derive(Copy, Clone, Debug, Default)]
 pub struct LayoutOptions {
     pub margin: Coord,
     pub padding: Coord,
+    pub pos: Option<(Coord, Coord)>,
+}
+
+#[derive(Copy, Clone, Debug, Default)]
+pub struct ToggleOptions {
+    pub align: TextAlign,
+    pub group: Option<usize>,
+    pub active: bool,
 }
 
 #[derive(Default)]
@@ -101,20 +114,13 @@ pub struct Context {
     mouse_down: usize,
     commands: Vec<Command>,
     layouts: Vec<Layout>,
-    last_area: Rect,
-    cursor: Pos,
-    paddings: Vec<Coord>,
-    margins: Vec<Coord>,
     button_state: HashMap<usize, bool>,
     toggle_group: HashMap<usize, HashSet<usize>>,
 }
 
 impl Context {
     pub fn new() -> Self {
-        Self {
-            mouse_pos: Pos { x: -1, y: -1 },
-            ..Default::default()
-        }
+        Default::default()
     }
     pub fn input_mouse_pos(&mut self, pos: Pos) {
         self.mouse_pos = pos;
@@ -127,17 +133,16 @@ impl Context {
         self.mouse_down &= !button;
     }
     pub fn begin(&mut self) {
-        self.mouse_delta.x = self.mouse_pos.x - self.last_mouse_pos.x;
-        self.mouse_delta.y = self.mouse_pos.y - self.last_mouse_pos.y;
-        self.cursor.x = 0;
-        self.cursor.y = 0;
-        self.id = 0;
-        self.paddings.clear();
-        self.margins.clear();
+        self.layouts.clear();
+        self.layouts.push(Default::default());
     }
     pub fn end(&mut self) {
-        self.mouse_pressed = 0;
+        self.mouse_delta.x = self.mouse_pos.x - self.last_mouse_pos.x;
+        self.mouse_delta.y = self.mouse_pos.y - self.last_mouse_pos.y;
         self.last_mouse_pos = self.mouse_pos;
+        self.mouse_pressed = 0;
+        self.id = 0;
+        //println!("=================");
     }
     pub fn render(&mut self, renderer: &mut impl Renderer) {
         for c in self.commands.iter() {
@@ -161,82 +166,84 @@ impl Context {
         self.id += 1;
         self.id
     }
-    pub fn vbox_begin(&mut self, width: Coord, opt: LayoutOptions) {
-        self.margins.push(opt.margin);
-        self.paddings.push(opt.padding);
-        self.cursor.x += opt.margin;
-        self.cursor.y += opt.margin;
+    fn next_layout(
+        &mut self,
+        width: Coord,
+        height: Coord,
+        margin: Coord,
+        padding: Coord,
+    ) -> Layout {
         self.layouts
-            .push(Layout::Vbox(self.cursor, width - 2 * opt.margin));
+            .last_mut()
+            .unwrap()
+            .next_layout(width, height, margin, padding)
+    }
+    fn next_rectangle(
+        &mut self,
+        width: Coord,
+        height: Coord,
+        margin: Coord,
+        padding: Coord,
+    ) -> Rect {
+        let layout = self.next_layout(width, height, margin, padding);
+        //println!("w {:?}", layout);
+        layout.r
+    }
+    fn last_cursor(&self) -> Pos {
+        self.layouts.last().unwrap().last_cursor
+    }
+    fn new_layout(&mut self, width: Coord, height: Coord, opt: LayoutOptions) -> Layout {
+        if let Some((x, y)) = opt.pos {
+            Layout::new_fixed(x, y, width, height, opt.margin, opt.padding)
+        } else {
+            self.layouts
+                .last_mut()
+                .unwrap()
+                .next_layout(width, height, opt.margin, opt.padding)
+        }
+    }
+    pub fn vbox_begin(&mut self, width: Coord, height: Coord, opt: LayoutOptions) {
+        let mut layout = self.new_layout(width, height, opt);
+        layout.mode = LayoutMode::Vertical;
+        //println!("v {:?}", layout);
+        self.layouts.push(layout);
     }
     pub fn vbox_end(&mut self) {
         self.layouts.pop();
-        let margin = self.margins.pop().unwrap();
-        let padding = self.paddings.pop().unwrap();
-        self.cursor.x -= margin;
-        self.cursor.y += margin - padding;
     }
-    pub fn hbox_begin(&mut self, height: Coord, opt: LayoutOptions) {
-        self.margins.push(opt.margin);
-        self.paddings.push(opt.padding);
-        self.cursor.x += opt.margin;
-        self.cursor.y += opt.margin;
-        self.layouts
-            .push(Layout::Hbox(self.cursor, height - 2 * opt.margin));
+    pub fn hbox_begin(&mut self, width: Coord, height: Coord, opt: LayoutOptions) {
+        let mut layout = self.new_layout(width, height, opt);
+        layout.mode = LayoutMode::Horizontal;
+        //println!("h {:?}", layout);
+        self.layouts.push(layout);
     }
     pub fn hbox_end(&mut self) {
-        let margin = self.margins.pop().unwrap();
-        if let Some(Layout::Hbox(pos, h)) = self.layouts.pop() {
-            self.cursor.x = pos.x;
-            self.cursor.y = pos.y + h + 2 * margin;
-        }
-    }
-    pub fn fixed_layout_begin(&mut self, x: Coord, y: Coord) {
-        let new_pos = Pos { x, y };
-        self.layouts.push(Layout::Fixed(self.cursor, new_pos));
-        self.cursor = new_pos;
-    }
-    pub fn fixed_layout_end(&mut self) {
-        if let Some(Layout::Fixed(oldpos, _)) = self.layouts.pop() {
-            self.cursor = oldpos;
-        }
+        self.layouts.pop();
     }
     pub fn frame_begin(&mut self, title: &str, width: Coord, height: Coord, opt: LayoutOptions) {
-        let id = self.next_id();
-        let r = self.layout(Rect::new(0, 0, width, height.max(3)));
-        self.update_control(id, &r);
-        self.draw_frame(r, title, ColorCode::Background);
-        self.cursor.x = r.x + 1;
-        self.cursor.y = r.y + 1;
-        self.vbox_begin(width - 2, opt);
+        self.vbox_begin(
+            width.max((title.len() + 2) as Coord),
+            height,
+            LayoutOptions {
+                margin: opt.margin + 1,
+                ..opt
+            },
+        );
+        self.draw_frame(self.layouts.last().unwrap().r, title, ColorCode::Background);
     }
     pub fn frame_end(&mut self) {
         self.vbox_end();
-        self.cursor.y += 1;
-        self.cursor.x -= 1;
     }
-    pub fn popup_begin(
-        &mut self,
-        title: &str,
-        x: Coord,
-        y: Coord,
-        width: Coord,
-        height: Coord,
-        opt: LayoutOptions,
-    ) {
-        self.fixed_layout_begin(x, y);
+    pub fn popup_begin(&mut self, title: &str, width: Coord, height: Coord, opt: LayoutOptions) {
         self.frame_begin(title, width, height, opt);
     }
     pub fn popup_end(&mut self) -> bool {
         let ret = self.button("Ok", TextAlign::Center);
         self.frame_end();
-        self.fixed_layout_end();
         ret
     }
     pub fn label(&mut self, label: &str, align: TextAlign) {
-        let id = self.next_id();
-        let r = self.layout(Rect::new(0, 0, label.len() as Coord, 1));
-        self.update_control(id, &r);
+        let r = self.next_rectangle(label.len() as Coord, 1, 0, 0);
         self.draw_rect(r, ColorCode::Background);
         self.draw_text(r, label, align, ColorCode::Text);
     }
@@ -250,7 +257,7 @@ impl Context {
             }
             *checked
         };
-        let pos: Pos = self.last_area.into();
+        let pos: Pos = self.last_cursor();
         self.draw_checkbox(pos, checked, ColorCode::Text);
         checked
     }
@@ -263,26 +270,20 @@ impl Context {
             self.button_state.insert(*id, false);
         }
     }
-    pub fn toggle(
-        &mut self,
-        label: &str,
-        align: TextAlign,
-        on: bool,
-        group: Option<usize>,
-    ) -> bool {
+    pub fn toggle(&mut self, label: &str, opt: ToggleOptions) -> bool {
         let id = self.next_id();
-        if let Some(group) = group {
+        if let Some(group) = opt.group {
             self.add_group_id(group, id);
         }
-        let r = self.layout(Rect::new(0, 0, label.len() as Coord, 1));
+        let r = self.next_rectangle(label.len() as Coord, 1, 0, 0);
         self.update_control(id, &r);
         let focus = self.focus == id;
         let hover = self.hover == id;
         let pressed = focus && hover && self.mouse_pressed == MOUSE_BUTTON_LEFT;
-        let mut on = *self.button_state.get(&self.id).unwrap_or(&on);
+        let mut on = *self.button_state.get(&self.id).unwrap_or(&opt.active);
         if pressed {
             if !on {
-                if let Some(group) = group {
+                if let Some(group) = opt.group {
                     self.disable_toggle_group(group);
                 }
             }
@@ -292,23 +293,24 @@ impl Context {
         self.draw_rect(
             r,
             if on {
-                ColorCode::ButtonBackgroundFocus
-            } else if focus || hover {
                 ColorCode::ButtonBackgroundHover
+            } else if focus || hover {
+                ColorCode::ButtonBackgroundFocus
             } else {
                 ColorCode::ButtonBackground
             },
         );
-        self.draw_text(r, label, align, ColorCode::Text);
+        self.draw_text(r, label, opt.align, ColorCode::Text);
         on
     }
     pub fn button(&mut self, label: &str, align: TextAlign) -> bool {
         let id = self.next_id();
-        let r = self.layout(Rect::new(0, 0, label.len() as Coord, 1));
+        let r = self.next_rectangle(label.len() as Coord, 1, 0, 0);
         self.update_control(id, &r);
         let focus = self.focus == id;
         let hover = self.hover == id;
         let pressed = focus && self.mouse_pressed == MOUSE_BUTTON_LEFT;
+        //println!("{}: {} {} {}",id, focus,hover,pressed);
         self.draw_rect(
             r,
             if hover {
@@ -382,35 +384,6 @@ impl Context {
     fn set_focus(&mut self, id: usize) {
         self.focus = id;
         self.updated_focus = true;
-    }
-
-    fn layout(&mut self, local: Rect) -> Rect {
-        let padding = self.paddings.last().unwrap_or(&0);
-        let mut r = Rect::new(
-            local.x + self.cursor.x,
-            local.y + self.cursor.y,
-            local.w,
-            local.h,
-        );
-        match self.layouts.last() {
-            Some(Layout::Fixed(_, Pos { x, y })) => {
-                r.x = local.x + x;
-                r.y = local.y + y;
-            }
-            Some(Layout::Vbox(pos, w)) => {
-                r.w = *w;
-                self.cursor.x = pos.x;
-                self.cursor.y += 1 + padding;
-            }
-            Some(Layout::Hbox(pos, h)) => {
-                r.h = *h;
-                self.cursor.x += r.w + padding;
-                self.cursor.y = pos.y;
-            }
-            None => (),
-        }
-        self.last_area = r;
-        r
     }
 }
 
@@ -493,7 +466,7 @@ mod tests {
         let mut rend = AsciiRenderer::new();
         let mut ctx = ui::Context::new();
         ctx.begin();
-        ctx.vbox_begin(1, Default::default());
+        ctx.vbox_begin(1, 0, Default::default());
         ctx.label("1", ui::TextAlign::Left);
         ctx.label("2", ui::TextAlign::Left);
         ctx.vbox_end();
@@ -507,7 +480,7 @@ mod tests {
         let mut rend = AsciiRenderer::new();
         let mut ctx = ui::Context::new();
         ctx.begin();
-        ctx.hbox_begin(1, Default::default());
+        ctx.hbox_begin(0, 1, Default::default());
         ctx.label("1", ui::TextAlign::Left);
         ctx.label("2", ui::TextAlign::Left);
         ctx.hbox_end();
@@ -523,6 +496,7 @@ mod tests {
         ctx.begin();
         ctx.vbox_begin(
             3,
+            0,
             ui::LayoutOptions {
                 margin: 1,
                 ..Default::default()
@@ -543,6 +517,7 @@ mod tests {
         ctx.begin();
         ctx.vbox_begin(
             3,
+            0,
             ui::LayoutOptions {
                 padding: 1,
                 ..Default::default()

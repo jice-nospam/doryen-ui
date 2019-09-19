@@ -27,9 +27,7 @@ pub fn render_doryen<S: BuildHasher>(
     for c in ctx.get_render_commands() {
         match c {
             Command::Rect(r, col) => render_rect(con, &r, conv_color(col, colormap)),
-            Command::Text(txt, pos, col) => {
-                render_text(con, pos.x, pos.y, &txt, conv_color(col, colormap))
-            }
+            Command::Text(txt, pos, col) => render_text(con, pos, &txt, conv_color(col, colormap)),
             Command::Frame(txt, r, col) => render_frame(
                 con,
                 &txt,
@@ -38,7 +36,7 @@ pub fn render_doryen<S: BuildHasher>(
                 conv_color(ColorCode::Text, colormap),
             ),
             Command::CheckBox(pos, checked, col) => {
-                render_checkbox(con, pos.x, pos.y, checked, conv_color(col, colormap));
+                render_checkbox(con, pos, checked, conv_color(col, colormap));
             }
         }
     }
@@ -51,12 +49,12 @@ fn conv_color<S: BuildHasher>(col: ColorCode, colormap: &HashMap<ColorCode, Colo
 fn render_rect(con: &mut Console, r: &Rect, col: Color) {
     con.area(r.x, r.y, r.w as u32, r.h as u32, None, Some(col), None);
 }
-fn render_text(con: &mut Console, x: i32, y: i32, txt: &str, col: Color) {
-    con.print(x, y, txt, TextAlign::Left, Some(col), None);
+fn render_text(con: &mut Console, pos: Pos, txt: &str, col: Color) {
+    con.print(pos.x, pos.y, txt, TextAlign::Left, Some(col), None);
 }
-fn render_checkbox(con: &mut Console, x: i32, y: i32, checked: bool, col: Color) {
-    con.ascii(x, y, if checked { 225 } else { 224 });
-    con.fore(x, y, col);
+fn render_checkbox(con: &mut Console, pos: Pos, checked: bool, col: Color) {
+    con.ascii(pos.x, pos.y, if checked { 225 } else { 224 });
+    con.fore(pos.x, pos.y, col);
 }
 fn render_frame(con: &mut Console, txt: &str, r: &Rect, col: Color, txtcol: Color) {
     let con = con;

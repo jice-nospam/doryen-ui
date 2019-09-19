@@ -12,21 +12,21 @@ A pure rust immediate user interface library for [doryen-rs](https://github.com/
 
 ## native compilation
 ```
-cargo run --example showcase --features=doryen
+cargo run --example showcase
 ```
 
 ## web assembly compilation
 ```
 rustup target install wasm32-unknown-unknown
 cargo install cargo-web
-cargo web start --features=doryen --example showcase
+cargo web start --example showcase
 ```
 
 # usage
 Cargo.toml :
 ```toml
 [dependency]
-doryen-ui={ version = "*", features=["doryen"] }
+doryen-ui="*"
 ```
 
 main.rs :
