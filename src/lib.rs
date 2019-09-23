@@ -74,10 +74,12 @@ pub enum Command {
     Text(String, Pos, ColorCode),
     TextColor(String, Pos, TextAlign),
     Frame(String, Rect, ColorCode),
+    Line(Pos, Pos, ColorCode),
     CheckBox(Pos, bool, ColorCode),
 }
 
 pub trait Renderer {
+    fn line(&mut self, p1: Pos, p2: Pos, col: ColorCode);
     fn rectangle(&mut self, rect: &Rect, col: ColorCode);
     fn text(&mut self, pos: Pos, txt: &str, col: ColorCode);
     fn text_color(&mut self, pos: Pos, txt: &str, align: TextAlign);
@@ -124,6 +126,11 @@ impl Context {
     pub fn new() -> Self {
         Default::default()
     }
+    // =======================================================
+    //
+    // Input
+    //
+    // =======================================================
     pub fn input_mouse_pos(&mut self, pos: Pos) {
         self.mouse_pos = pos;
     }
@@ -134,6 +141,11 @@ impl Context {
     pub fn input_mouse_up(&mut self, button: usize) {
         self.mouse_down &= !button;
     }
+    // =======================================================
+    //
+    // Core
+    //
+    // =======================================================
     pub fn begin(&mut self) {
         self.layouts.clear();
         self.commands.clear();
@@ -154,6 +166,7 @@ impl Context {
                 Command::Text(txt, pos, col) => renderer.text(*pos, txt, *col),
                 Command::TextColor(txt, pos, align) => renderer.text_color(*pos, txt, *align),
                 Command::Frame(txt, r, col) => renderer.frame(txt, r, *col),
+                Command::Line(p1, p2, col) => renderer.line(*p1, *p2, *col),
                 Command::CheckBox(pos, checked, col) => renderer.checkbox(*pos, *checked, *col),
             }
         }
@@ -164,28 +177,11 @@ impl Context {
     pub fn last_id(&self) -> usize {
         self.id
     }
-    pub fn set_toggle_status(&mut self, toggle_id: usize, status: bool) {
-        self.button_state.insert(toggle_id, status);
-    }
-
-    fn next_id(&mut self) -> usize {
-        self.id += 1;
-        self.id
-    }
-    fn next_rectangle(&mut self, width: Coord, height: Coord) -> Rect {
-        self.layouts.last_mut().unwrap().next_area(width, height)
-        //println!("w {:?}", layout);
-    }
-    fn last_cursor(&self) -> Pos {
-        self.layouts.last().unwrap().last_cursor()
-    }
-    fn next_layout_area(&mut self, w: Coord, h: Coord, opt: LayoutOptions) -> Rect {
-        if let Some((x, y)) = opt.pos {
-            Rect { x, y, w, h }
-        } else {
-            self.layouts.last_mut().unwrap().next_area(w, h)
-        }
-    }
+    // =======================================================
+    //
+    // Containers
+    //
+    // =======================================================
     pub fn grid_begin(
         &mut self,
         cols: usize,
@@ -248,6 +244,24 @@ impl Context {
         self.frame_end();
         ret
     }
+    // =======================================================
+    //
+    // Basic widgets
+    //
+    // =======================================================
+    pub fn separator(&mut self) {
+        let r = self.next_rectangle(0, 0);
+        self.draw_rect(r, ColorCode::Background);
+        self.commands.push(Command::Line(
+            r.into(),
+            Pos {
+                x: r.x + r.w - 1,
+                y: r.y + r.h - 1,
+            },
+            ColorCode::Foreground,
+        ));
+    }
+
     pub fn label(&mut self, label: &str, align: TextAlign) {
         let r = self.next_rectangle(label.chars().count() as Coord, 1);
         self.draw_rect(r, ColorCode::Background);
@@ -258,6 +272,50 @@ impl Context {
         let r = self.next_rectangle(len, 1);
         self.draw_rect(r, ColorCode::Background);
         self.draw_text_color(r, label, align);
+    }
+    // =======================================================
+    //
+    // Buttons
+    //
+    // =======================================================
+    fn next_id(&mut self) -> usize {
+        self.id += 1;
+        self.id
+    }
+    fn next_rectangle(&mut self, width: Coord, height: Coord) -> Rect {
+        self.layouts.last_mut().unwrap().next_area(width, height)
+        //println!("w {:?}", layout);
+    }
+    fn last_cursor(&self) -> Pos {
+        self.layouts.last().unwrap().last_cursor()
+    }
+    fn next_layout_area(&mut self, w: Coord, h: Coord, opt: LayoutOptions) -> Rect {
+        if let Some((x, y)) = opt.pos {
+            Rect { x, y, w, h }
+        } else {
+            self.layouts.last_mut().unwrap().next_area(w, h)
+        }
+    }
+    pub fn button(&mut self, label: &str, align: TextAlign) -> bool {
+        let id = self.next_id();
+        let r = self.next_rectangle(label.chars().count() as Coord, 1);
+        self.update_control(id, &r);
+        let focus = self.focus == id;
+        let hover = self.hover == id;
+        let pressed = focus && self.mouse_pressed == MOUSE_BUTTON_LEFT;
+        //println!("{}: {} {} {}",id, focus,hover,pressed);
+        self.draw_rect(
+            r,
+            if hover {
+                ColorCode::ButtonBackgroundHover
+            } else if focus {
+                ColorCode::ButtonBackgroundFocus
+            } else {
+                ColorCode::ButtonBackground
+            },
+        );
+        self.draw_text(r, label, align, ColorCode::Text);
+        pressed
     }
     pub fn checkbox(&mut self, label: &str, checked: bool) -> bool {
         let padded_label = "  ".to_owned() + label;
@@ -272,6 +330,8 @@ impl Context {
         self.draw_checkbox(self.last_cursor(), checked, ColorCode::Text);
         checked
     }
+
+    /// returns (toggle_status, has_changed_this_frame)
     fn add_group_id(&mut self, group: usize, id: usize) {
         let ids = self.toggle_group.entry(group).or_insert_with(HashSet::new);
         ids.insert(id);
@@ -281,7 +341,6 @@ impl Context {
             self.button_state.insert(*id, false);
         }
     }
-    /// returns (toggle_status, has_changed_this_frame)
     pub fn toggle(&mut self, label: &str, opt: ToggleOptions) -> (bool, bool) {
         let id = self.next_id();
         if let Some(group) = opt.group {
@@ -306,7 +365,7 @@ impl Context {
         self.button_state.insert(id, on);
         self.draw_rect(
             r,
-            if on {
+            if on && !hover {
                 ColorCode::ButtonBackgroundHover
             } else if focus || hover {
                 ColorCode::ButtonBackgroundFocus
@@ -317,27 +376,15 @@ impl Context {
         self.draw_text(r, label, opt.align, ColorCode::Text);
         (on, changed)
     }
-    pub fn button(&mut self, label: &str, align: TextAlign) -> bool {
-        let id = self.next_id();
-        let r = self.next_rectangle(label.chars().count() as Coord, 1);
-        self.update_control(id, &r);
-        let focus = self.focus == id;
-        let hover = self.hover == id;
-        let pressed = focus && self.mouse_pressed == MOUSE_BUTTON_LEFT;
-        //println!("{}: {} {} {}",id, focus,hover,pressed);
-        self.draw_rect(
-            r,
-            if hover {
-                ColorCode::ButtonBackgroundHover
-            } else if focus {
-                ColorCode::ButtonBackgroundFocus
-            } else {
-                ColorCode::ButtonBackground
-            },
-        );
-        self.draw_text(r, label, align, ColorCode::Text);
-        pressed
+    pub fn set_toggle_status(&mut self, toggle_id: usize, status: bool) {
+        self.button_state.insert(toggle_id, status);
     }
+
+    // =======================================================
+    //
+    // Basic drawing functions
+    //
+    // =======================================================
     fn draw_checkbox(&mut self, p: Pos, checked: bool, col: ColorCode) {
         self.commands.push(Command::CheckBox(p, checked, col));
     }
@@ -438,6 +485,7 @@ mod tests {
         }
     }
     impl ui::Renderer for AsciiRenderer {
+        fn line(&mut self, _p1: ui::Pos, _p2: ui::Pos, _col: ui::ColorCode) {}
         fn rectangle(&mut self, rect: &ui::Rect, _col: ui::ColorCode) {
             for cx in rect.x as usize..(rect.x + rect.w) as usize {
                 for cy in rect.y as usize..(rect.y + rect.h) as usize {

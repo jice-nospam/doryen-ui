@@ -82,8 +82,8 @@ impl Showcase {
         ctx.grid_end();
         ctx.frame_end();
         ctx.frame_begin("labels", 17, 5, Default::default());
-        ctx.label("right",ui::TextAlign::Right);
-        ctx.label("center",ui::TextAlign::Center);
+        ctx.label("right", ui::TextAlign::Right);
+        ctx.label("center", ui::TextAlign::Center);
         ctx.label_color("#[yellow]colored #[orange]labels", ui::TextAlign::Left);
         ctx.frame_end();
         ctx.end();
@@ -93,19 +93,19 @@ impl Showcase {
 impl Engine for Showcase {
     fn init(&mut self, api: &mut dyn DoryenApi) {
         self.colormap
-            .insert(ui::ColorCode::Background, (10, 10, 20, 255));
+            .insert(ui::ColorCode::Background, (245, 245, 245, 255));
         self.colormap
             .insert(ui::ColorCode::Foreground, (200, 200, 255, 255));
         self.colormap
-            .insert(ui::ColorCode::ButtonBackground, (50, 60, 70, 255));
+            .insert(ui::ColorCode::ButtonBackground, (201, 201, 201, 255));
         self.colormap
-            .insert(ui::ColorCode::ButtonBackgroundHover, (100, 130, 170, 255));
+            .insert(ui::ColorCode::ButtonBackgroundHover, (201, 239, 254, 255));
         self.colormap
-            .insert(ui::ColorCode::ButtonBackgroundFocus, (60, 80, 100, 255));
+            .insert(ui::ColorCode::ButtonBackgroundFocus, (151, 232, 235, 255));
         self.colormap
-            .insert(ui::ColorCode::Text, (200, 220, 250, 255));
-        api.con().register_color("yellow",(200,200,100,255));
-        api.con().register_color("orange",(150,150,50,255));
+            .insert(ui::ColorCode::Text, (104, 104, 104, 255));
+        api.con().register_color("yellow", (200, 200, 100, 255));
+        api.con().register_color("orange", (150, 150, 50, 255));
     }
     fn update(&mut self, api: &mut dyn DoryenApi) {
         ui::update_doryen_input_data(api, &mut self.ctx);

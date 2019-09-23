@@ -2,9 +2,9 @@ use std::collections::HashMap;
 use std::hash::BuildHasher;
 
 use crate::{ColorCode, Command, Context, Pos, Rect};
-use doryen_rs::{Color, Console, DoryenApi, TextAlign};
+use doryen_rs::{Color, Console, DoryenApi, TextAlign, CHAR_LINE_H};
 
-pub fn text_color_len(txt:&str) -> usize {
+pub fn text_color_len(txt: &str) -> usize {
     Console::text_color_len(txt)
 }
 
@@ -41,6 +41,7 @@ pub fn render_doryen<S: BuildHasher>(
     for c in ctx.get_render_commands().iter() {
         match c {
             Command::Rect(r, col) => render_rect(con, &r, conv_color(*col, colormap)),
+            Command::Line(p1, p2, col) => render_line(con, *p1, *p2, conv_color(*col, colormap)),
             Command::Text(txt, pos, col) => {
                 render_text(con, *pos, &txt, conv_color(*col, colormap))
             }
@@ -67,6 +68,17 @@ fn conv_color<S: BuildHasher>(col: ColorCode, colormap: &HashMap<ColorCode, Colo
 
 fn render_rect(con: &mut Console, r: &Rect, col: Color) {
     con.area(r.x, r.y, r.w as u32, r.h as u32, None, Some(col), None);
+}
+fn render_line(con: &mut Console, p1: Pos, p2: Pos, col: Color) {
+    con.area(
+        p1.x,
+        p1.y,
+        (p2.x - p1.x + 1) as u32,
+        (p2.y - p1.y + 1) as u32,
+        Some(col),
+        None,
+        Some(CHAR_LINE_H),
+    );
 }
 fn render_text(con: &mut Console, pos: Pos, txt: &str, col: Color) {
     con.print(pos.x, pos.y, txt, TextAlign::Left, Some(col), None);
