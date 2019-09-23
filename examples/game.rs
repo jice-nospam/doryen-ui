@@ -31,19 +31,15 @@ impl Astacia {
                 ..Default::default()
             },
         );
-        let toggle_opt = ui::ToggleOptions {
-            group: Some(1),
-            ..Default::default()
-        };
-        if self.ctx.toggle("  New game", toggle_opt) {}
-        if self.ctx.toggle("  Continue", toggle_opt) {}
-        if self.ctx.toggle("  Options", toggle_opt) {
+        if self.ctx.button("New game", ui::TextAlign::Center) {}
+        if self.ctx.button("Continue", ui::TextAlign::Center) {}
+        if self.ctx.button("Options ", ui::TextAlign::Center) {
             self.option_panel = true;
         }
         if self.option_panel {
             self.options_panel();
         }
-        if self.ctx.toggle("  Quit game", toggle_opt) {}
+        if self.ctx.button("Quit game", ui::TextAlign::Center) {}
         self.ctx.vbox_end();
         self.ctx.end();
     }
@@ -61,35 +57,40 @@ impl Astacia {
             },
         );
         ctx.label("Game settings", ui::TextAlign::Left);
-        ctx.hbox_begin(35, 3, Default::default());
+        ctx.grid_begin(2, 3, 15, 1, Default::default());
         {
-            ctx.vbox_begin(15, 3, Default::default());
-            {
-                ctx.label("Font :", ui::TextAlign::Right);
-                ctx.label("FPS :", ui::TextAlign::Right);
-                ctx.label("Resolution :", ui::TextAlign::Right);
-            }
-            ctx.vbox_end();
-            ctx.vbox_begin(20, 3, Default::default());
-            {
-                ctx.label("[ arial_8x8.png ]", ui::TextAlign::Left);
-                ctx.label("[ 30 ]", ui::TextAlign::Left);
-                ctx.label("[ 128x96 ]", ui::TextAlign::Left);
-            }
-            ctx.vbox_end();
+            ctx.label("Font :", ui::TextAlign::Right);
+            ctx.label("[ arial_8x8.png ]", ui::TextAlign::Left);
+            ctx.label("FPS :", ui::TextAlign::Right);
+            ctx.label("[ 30 ]", ui::TextAlign::Left);
+            ctx.label("Resolution :", ui::TextAlign::Right);
+            ctx.label("[ 128x96 ]", ui::TextAlign::Left);
         }
-        ctx.hbox_end();
+        ctx.grid_end();
 
         ctx.label("Controls", ui::TextAlign::Left);
-        ctx.label("Move up :", ui::TextAlign::Right);
-        ctx.label("Move down :", ui::TextAlign::Right);
-        ctx.label("Move left :", ui::TextAlign::Right);
-        ctx.label("Move right :", ui::TextAlign::Right);
-        ctx.label("Equipment :", ui::TextAlign::Right);
-        ctx.label("Inventory :", ui::TextAlign::Right);
-        ctx.label("Talk to NPC :", ui::TextAlign::Right);
-        ctx.label("Show message :", ui::TextAlign::Right);
-        ctx.label("Return / Menu :", ui::TextAlign::Right);
+        ctx.grid_begin(2, 9, 15, 1, Default::default());
+        {
+            ctx.label("Move up :", ui::TextAlign::Right);
+            ctx.label("[ Arrow up    ]", ui::TextAlign::Left);
+            ctx.label("Move down :", ui::TextAlign::Right);
+            ctx.label("[ Arrow down  ]", ui::TextAlign::Left);
+            ctx.label("Move left :", ui::TextAlign::Right);
+            ctx.label("[ Arrow left  ]", ui::TextAlign::Left);
+            ctx.label("Move right :", ui::TextAlign::Right);
+            ctx.label("[ Arrow right ]", ui::TextAlign::Left);
+            ctx.label("Equipment :", ui::TextAlign::Right);
+            ctx.label("[ E           ]", ui::TextAlign::Left);
+            ctx.label("Inventory :", ui::TextAlign::Right);
+            ctx.label("[ I           ]", ui::TextAlign::Left);
+            ctx.label("Talk to NPC :", ui::TextAlign::Right);
+            ctx.label("[ T           ]", ui::TextAlign::Left);
+            ctx.label("Show message :", ui::TextAlign::Right);
+            ctx.label("[ M           ]", ui::TextAlign::Left);
+            ctx.label("Return / Menu :", ui::TextAlign::Right);
+            ctx.label("[ Escape      ]", ui::TextAlign::Left);
+        }
+        ctx.grid_end();
         ctx.hbox_begin(0, 1, Default::default());
         if ctx.button("   Ok   ", ui::TextAlign::Left) {
             self.option_panel = false;

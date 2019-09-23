@@ -134,6 +134,7 @@ impl Context {
     }
     pub fn begin(&mut self) {
         self.layouts.clear();
+        self.commands.clear();
         self.layouts.push(Default::default());
     }
     pub fn end(&mut self) {
@@ -153,58 +154,56 @@ impl Context {
                 Command::CheckBox(pos, checked, col) => renderer.checkbox(*pos, *checked, *col),
             }
         }
-        self.commands.clear();
     }
-    pub fn get_render_commands(&mut self) -> Vec<Command> {
-        let mut v = Vec::new();
-        v.append(&mut self.commands);
-        self.commands.clear();
-        v
+    pub fn get_render_commands(&mut self) -> &Vec<Command> {
+        &self.commands
+    }
+    pub fn last_id(&self) -> usize {
+        self.id
+    }
+    pub fn set_toggle_status(&mut self, toggle_id: usize, status: bool) {
+        self.button_state.insert(toggle_id, status);
     }
 
     fn next_id(&mut self) -> usize {
         self.id += 1;
         self.id
     }
-    fn next_layout(
-        &mut self,
-        width: Coord,
-        height: Coord,
-        margin: Coord,
-        padding: Coord,
-    ) -> Layout {
-        self.layouts
-            .last_mut()
-            .unwrap()
-            .next_layout(width, height, margin, padding)
-    }
-    fn next_rectangle(
-        &mut self,
-        width: Coord,
-        height: Coord,
-        margin: Coord,
-        padding: Coord,
-    ) -> Rect {
-        let layout = self.next_layout(width, height, margin, padding);
+    fn next_rectangle(&mut self, width: Coord, height: Coord) -> Rect {
+        self.layouts.last_mut().unwrap().next_area(width, height)
         //println!("w {:?}", layout);
-        layout.r
     }
     fn last_cursor(&self) -> Pos {
-        self.layouts.last().unwrap().last_cursor
+        self.layouts.last().unwrap().last_cursor()
     }
-    fn new_layout(&mut self, width: Coord, height: Coord, opt: LayoutOptions) -> Layout {
+    fn next_layout_area(&mut self, w: Coord, h: Coord, opt: LayoutOptions) -> Rect {
         if let Some((x, y)) = opt.pos {
-            Layout::new_fixed(x, y, width, height, opt.margin, opt.padding)
+            Rect { x, y, w, h }
         } else {
-            self.layouts
-                .last_mut()
-                .unwrap()
-                .next_layout(width, height, opt.margin, opt.padding)
+            self.layouts.last_mut().unwrap().next_area(w, h)
         }
     }
+    pub fn grid_begin(
+        &mut self,
+        cols: usize,
+        rows: usize,
+        width: Coord,
+        height: Coord,
+        opt: LayoutOptions,
+    ) {
+        let mut r = self.next_layout_area(width * cols as Coord, height * rows as Coord, opt);
+        r.w = width;
+        r.h = height;
+        let layout = Layout::new_grid(r, cols, rows, opt.margin, opt.padding);
+        //println!("g {:?}", layout);
+        self.layouts.push(layout);
+    }
+    pub fn grid_end(&mut self) {
+        self.layouts.pop();
+    }
     pub fn vbox_begin(&mut self, width: Coord, height: Coord, opt: LayoutOptions) {
-        let mut layout = self.new_layout(width, height, opt);
-        layout.mode = LayoutMode::Vertical;
+        let r = self.next_layout_area(width, height, opt);
+        let layout = Layout::new(LayoutMode::Vertical, r, opt.margin, opt.padding);
         //println!("v {:?}", layout);
         self.layouts.push(layout);
     }
@@ -212,8 +211,8 @@ impl Context {
         self.layouts.pop();
     }
     pub fn hbox_begin(&mut self, width: Coord, height: Coord, opt: LayoutOptions) {
-        let mut layout = self.new_layout(width, height, opt);
-        layout.mode = LayoutMode::Horizontal;
+        let r = self.next_layout_area(width, height, opt);
+        let layout = Layout::new(LayoutMode::Horizontal, r, opt.margin, opt.padding);
         //println!("h {:?}", layout);
         self.layouts.push(layout);
     }
@@ -229,7 +228,11 @@ impl Context {
                 ..opt
             },
         );
-        self.draw_frame(self.layouts.last().unwrap().r, title, ColorCode::Background);
+        self.draw_frame(
+            self.layouts.last().unwrap().area(),
+            title,
+            ColorCode::Background,
+        );
     }
     pub fn frame_end(&mut self) {
         self.vbox_end();
@@ -243,7 +246,7 @@ impl Context {
         ret
     }
     pub fn label(&mut self, label: &str, align: TextAlign) {
-        let r = self.next_rectangle(label.len() as Coord, 1, 0, 0);
+        let r = self.next_rectangle(label.len() as Coord, 1);
         self.draw_rect(r, ColorCode::Background);
         self.draw_text(r, label, align, ColorCode::Text);
     }
@@ -257,8 +260,7 @@ impl Context {
             }
             *checked
         };
-        let pos: Pos = self.last_cursor();
-        self.draw_checkbox(pos, checked, ColorCode::Text);
+        self.draw_checkbox(self.last_cursor(), checked, ColorCode::Text);
         checked
     }
     fn add_group_id(&mut self, group: usize, id: usize) {
@@ -270,23 +272,26 @@ impl Context {
             self.button_state.insert(*id, false);
         }
     }
-    pub fn toggle(&mut self, label: &str, opt: ToggleOptions) -> bool {
+    /// returns (toggle_status, has_changed_this_frame)
+    pub fn toggle(&mut self, label: &str, opt: ToggleOptions) -> (bool, bool) {
         let id = self.next_id();
         if let Some(group) = opt.group {
             self.add_group_id(group, id);
         }
-        let r = self.next_rectangle(label.len() as Coord, 1, 0, 0);
+        let r = self.next_rectangle(label.len() as Coord, 1);
         self.update_control(id, &r);
         let focus = self.focus == id;
         let hover = self.hover == id;
         let pressed = focus && hover && self.mouse_pressed == MOUSE_BUTTON_LEFT;
         let mut on = *self.button_state.get(&self.id).unwrap_or(&opt.active);
+        let mut changed = false;
         if pressed {
             if !on {
                 if let Some(group) = opt.group {
                     self.disable_toggle_group(group);
                 }
             }
+            changed = true;
             on = !on;
         }
         self.button_state.insert(id, on);
@@ -301,11 +306,11 @@ impl Context {
             },
         );
         self.draw_text(r, label, opt.align, ColorCode::Text);
-        on
+        (on, changed)
     }
     pub fn button(&mut self, label: &str, align: TextAlign) -> bool {
         let id = self.next_id();
-        let r = self.next_rectangle(label.len() as Coord, 1, 0, 0);
+        let r = self.next_rectangle(label.len() as Coord, 1);
         self.update_control(id, &r);
         let focus = self.focus == id;
         let hover = self.hover == id;

@@ -24,19 +24,21 @@ pub fn render_doryen<S: BuildHasher>(
     ctx: &mut Context,
     colormap: &HashMap<ColorCode, Color, S>,
 ) {
-    for c in ctx.get_render_commands() {
+    for c in ctx.get_render_commands().iter() {
         match c {
-            Command::Rect(r, col) => render_rect(con, &r, conv_color(col, colormap)),
-            Command::Text(txt, pos, col) => render_text(con, pos, &txt, conv_color(col, colormap)),
+            Command::Rect(r, col) => render_rect(con, &r, conv_color(*col, colormap)),
+            Command::Text(txt, pos, col) => {
+                render_text(con, *pos, &txt, conv_color(*col, colormap))
+            }
             Command::Frame(txt, r, col) => render_frame(
                 con,
                 &txt,
                 &r,
-                conv_color(col, colormap),
+                conv_color(*col, colormap),
                 conv_color(ColorCode::Text, colormap),
             ),
             Command::CheckBox(pos, checked, col) => {
-                render_checkbox(con, pos, checked, conv_color(col, colormap));
+                render_checkbox(con, *pos, *checked, conv_color(*col, colormap));
             }
         }
     }

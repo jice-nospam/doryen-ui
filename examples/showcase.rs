@@ -73,6 +73,14 @@ impl Showcase {
         ctx.toggle("3", toggle_opt);
         ctx.hbox_end();
         ctx.frame_end();
+        ctx.frame_begin("grid", 17, 4, Default::default());
+        ctx.grid_begin(3, 2, 5, 1, Default::default());
+        ctx.toggle("1", toggle_opt);
+        ctx.toggle("2", toggle_opt);
+        ctx.toggle("3", toggle_opt);
+        ctx.toggle("4", toggle_opt);
+        ctx.grid_end();
+        ctx.frame_end();
         ctx.end();
     }
 }
