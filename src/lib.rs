@@ -72,6 +72,7 @@ impl Rect {
 pub enum Command {
     Rect(Rect, ColorCode),
     Text(String, Pos, ColorCode),
+    TextColor(String, Pos, TextAlign),
     Frame(String, Rect, ColorCode),
     CheckBox(Pos, bool, ColorCode),
 }
@@ -79,6 +80,7 @@ pub enum Command {
 pub trait Renderer {
     fn rectangle(&mut self, rect: &Rect, col: ColorCode);
     fn text(&mut self, pos: Pos, txt: &str, col: ColorCode);
+    fn text_color(&mut self, pos: Pos, txt: &str, align: TextAlign);
     fn frame(&mut self, txt: &str, rect: &Rect, col: ColorCode);
     fn checkbox(&mut self, pos: Pos, checked: bool, col: ColorCode);
 }
@@ -150,6 +152,7 @@ impl Context {
             match c {
                 Command::Rect(r, col) => renderer.rectangle(r, *col),
                 Command::Text(txt, pos, col) => renderer.text(*pos, txt, *col),
+                Command::TextColor(txt, pos, align) => renderer.text_color(*pos, txt, *align),
                 Command::Frame(txt, r, col) => renderer.frame(txt, r, *col),
                 Command::CheckBox(pos, checked, col) => renderer.checkbox(*pos, *checked, *col),
             }
@@ -221,7 +224,7 @@ impl Context {
     }
     pub fn frame_begin(&mut self, title: &str, width: Coord, height: Coord, opt: LayoutOptions) {
         self.vbox_begin(
-            width.max((title.len() + 2) as Coord),
+            width.max((title.chars().count() + 2) as Coord),
             height,
             LayoutOptions {
                 margin: opt.margin + 1,
@@ -246,9 +249,15 @@ impl Context {
         ret
     }
     pub fn label(&mut self, label: &str, align: TextAlign) {
-        let r = self.next_rectangle(label.len() as Coord, 1);
+        let r = self.next_rectangle(label.chars().count() as Coord, 1);
         self.draw_rect(r, ColorCode::Background);
         self.draw_text(r, label, align, ColorCode::Text);
+    }
+    pub fn label_color(&mut self, label: &str, align: TextAlign) {
+        let len = text_color_len(label) as Coord;
+        let r = self.next_rectangle(len, 1);
+        self.draw_rect(r, ColorCode::Background);
+        self.draw_text_color(r, label, align);
     }
     pub fn checkbox(&mut self, label: &str, checked: bool) -> bool {
         let padded_label = "  ".to_owned() + label;
@@ -278,7 +287,7 @@ impl Context {
         if let Some(group) = opt.group {
             self.add_group_id(group, id);
         }
-        let r = self.next_rectangle(label.len() as Coord, 1);
+        let r = self.next_rectangle(label.chars().count() as Coord, 1);
         self.update_control(id, &r);
         let focus = self.focus == id;
         let hover = self.hover == id;
@@ -310,7 +319,7 @@ impl Context {
     }
     pub fn button(&mut self, label: &str, align: TextAlign) -> bool {
         let id = self.next_id();
-        let r = self.next_rectangle(label.len() as Coord, 1);
+        let r = self.next_rectangle(label.chars().count() as Coord, 1);
         self.update_control(id, &r);
         let focus = self.focus == id;
         let hover = self.hover == id;
@@ -341,33 +350,13 @@ impl Context {
     }
 
     fn draw_text(&mut self, r: Rect, txt: &str, align: TextAlign, col: ColorCode) {
-        let mut p: Pos = r.into();
-        let truncated_txt: String;
-        let len = txt.len() as Coord;
-        match align {
-            TextAlign::Left => truncated_txt = txt[0..r.w.min(len) as usize].to_owned(),
-            TextAlign::Right => {
-                p.x = p.x + r.w - len;
-                if p.x < 0 {
-                    truncated_txt = txt[(-p.x) as usize..].to_owned();
-                    p.x = 0;
-                } else {
-                    truncated_txt = txt.to_owned();
-                }
-            }
-            TextAlign::Center => {
-                if len > r.w {
-                    let to_remove = (len - r.w) as usize;
-                    let start = (to_remove / 2) as usize;
-                    let end = (len as usize - (to_remove - start)) as usize;
-                    truncated_txt = txt[start..end].to_owned();
-                } else {
-                    truncated_txt = txt.to_owned();
-                }
-                p.x = p.x + r.w / 2 - len / 2;
-            }
-        };
-        self.commands.push(Command::Text(truncated_txt, p, col));
+        let (pos, truncated_text) = format_text(r, txt, align);
+        self.commands.push(Command::Text(truncated_text, pos, col));
+    }
+
+    fn draw_text_color(&mut self, r: Rect, txt: &str, align: TextAlign) {
+        self.commands
+            .push(Command::TextColor(txt.to_owned(), r.into(), align));
     }
 
     fn update_control(&mut self, id: usize, r: &Rect) {
@@ -392,6 +381,36 @@ impl Context {
     }
 }
 
+fn format_text(r: Rect, txt: &str, align: TextAlign) -> (Pos, String) {
+    let mut p: Pos = r.into();
+    let truncated_txt: String;
+    let len = txt.chars().count() as Coord;
+    match align {
+        TextAlign::Left => truncated_txt = txt[0..r.w.min(len) as usize].to_owned(),
+        TextAlign::Right => {
+            p.x = p.x + r.w - len;
+            if p.x < 0 {
+                truncated_txt = txt[(-p.x) as usize..].to_owned();
+                p.x = 0;
+            } else {
+                truncated_txt = txt.to_owned();
+            }
+        }
+        TextAlign::Center => {
+            if len > r.w {
+                let to_remove = (len - r.w) as usize;
+                let start = (to_remove / 2) as usize;
+                let end = (len as usize - (to_remove - start)) as usize;
+                truncated_txt = txt[start..end].to_owned();
+            } else {
+                truncated_txt = txt.to_owned();
+            }
+            p.x = p.x + r.w / 2 - len / 2;
+        }
+    };
+    (p, truncated_txt)
+}
+
 #[cfg(test)]
 mod tests {
     use crate as ui;
@@ -400,15 +419,11 @@ mod tests {
     const SCREEN_HEIGHT: usize = 25;
     struct AsciiRenderer {
         character: [[char; SCREEN_HEIGHT]; SCREEN_WIDTH],
-        background_color: [[ui::ColorCode; SCREEN_HEIGHT]; SCREEN_WIDTH],
-        foreground_color: [[ui::ColorCode; SCREEN_HEIGHT]; SCREEN_WIDTH],
     }
     impl AsciiRenderer {
         pub fn new() -> Self {
             Self {
                 character: [[' '; SCREEN_HEIGHT]; SCREEN_WIDTH],
-                background_color: [[ui::ColorCode::Background; SCREEN_HEIGHT]; SCREEN_WIDTH],
-                foreground_color: [[ui::ColorCode::Foreground; SCREEN_HEIGHT]; SCREEN_WIDTH],
             }
         }
         pub fn assert(&self, t: &str, x: usize, y: usize) -> bool {
@@ -423,20 +438,26 @@ mod tests {
         }
     }
     impl ui::Renderer for AsciiRenderer {
-        fn rectangle(&mut self, rect: &ui::Rect, col: ui::ColorCode) {
+        fn rectangle(&mut self, rect: &ui::Rect, _col: ui::ColorCode) {
             for cx in rect.x as usize..(rect.x + rect.w) as usize {
                 for cy in rect.y as usize..(rect.y + rect.h) as usize {
                     self.character[cx][cy] = ' ';
-                    self.background_color[cx][cy] = col;
                 }
             }
         }
-        fn text(&mut self, pos: ui::Pos, txt: &str, col: ui::ColorCode) {
+        fn text(&mut self, pos: ui::Pos, txt: &str, _col: ui::ColorCode) {
             let mut x = pos.x as usize;
             let y = pos.y as usize;
             for c in txt.chars() {
                 self.character[x][y] = c;
-                self.foreground_color[x][y] = col;
+                x += 1;
+            }
+        }
+        fn text_color(&mut self, pos: ui::Pos, txt: &str, _align: ui::TextAlign) {
+            let mut x = pos.x as usize;
+            let y = pos.y as usize;
+            for c in txt.chars() {
+                self.character[x][y] = c;
                 x += 1;
             }
         }

@@ -4,6 +4,10 @@ use std::hash::BuildHasher;
 use crate::{ColorCode, Command, Context, Pos, Rect};
 use doryen_rs::{Color, Console, DoryenApi, TextAlign};
 
+pub fn text_color_len(txt:&str) -> usize {
+    Console::text_color_len(txt)
+}
+
 pub fn update_doryen_input_data(api: &mut dyn DoryenApi, ctx: &mut Context) {
     let input = api.input();
     let (mx, my) = input.mouse_pos();
@@ -19,6 +23,16 @@ pub fn update_doryen_input_data(api: &mut dyn DoryenApi, ctx: &mut Context) {
     }
 }
 
+impl From<crate::TextAlign> for TextAlign {
+    fn from(t: crate::TextAlign) -> Self {
+        match t {
+            crate::TextAlign::Left => TextAlign::Left,
+            crate::TextAlign::Right => TextAlign::Right,
+            crate::TextAlign::Center => TextAlign::Center,
+        }
+    }
+}
+
 pub fn render_doryen<S: BuildHasher>(
     con: &mut Console,
     ctx: &mut Context,
@@ -29,6 +43,9 @@ pub fn render_doryen<S: BuildHasher>(
             Command::Rect(r, col) => render_rect(con, &r, conv_color(*col, colormap)),
             Command::Text(txt, pos, col) => {
                 render_text(con, *pos, &txt, conv_color(*col, colormap))
+            }
+            Command::TextColor(txt, pos, align) => {
+                render_text_color(con, *pos, &txt, (*align).into())
             }
             Command::Frame(txt, r, col) => render_frame(
                 con,
@@ -53,6 +70,9 @@ fn render_rect(con: &mut Console, r: &Rect, col: Color) {
 }
 fn render_text(con: &mut Console, pos: Pos, txt: &str, col: Color) {
     con.print(pos.x, pos.y, txt, TextAlign::Left, Some(col), None);
+}
+fn render_text_color(con: &mut Console, pos: Pos, txt: &str, align: TextAlign) {
+    con.print_color(pos.x, pos.y, txt, align, None);
 }
 fn render_checkbox(con: &mut Console, pos: Pos, checked: bool, col: Color) {
     con.ascii(pos.x, pos.y, if checked { 225 } else { 224 });

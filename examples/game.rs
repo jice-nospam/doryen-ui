@@ -31,22 +31,27 @@ impl Astacia {
                 ..Default::default()
             },
         );
-        if self.ctx.button("New game", ui::TextAlign::Center) {}
-        if self.ctx.button("Continue", ui::TextAlign::Center) {}
+        if self.ctx.button("New game", ui::TextAlign::Center) {
+            self.option_panel = false;
+        }
+        if self.ctx.button("Continue", ui::TextAlign::Center) {
+            self.option_panel = false;
+        }
         if self.ctx.button("Options ", ui::TextAlign::Center) {
             self.option_panel = true;
         }
         if self.option_panel {
             self.options_panel();
         }
-        if self.ctx.button("Quit game", ui::TextAlign::Center) {}
+        if self.ctx.button("Quit game", ui::TextAlign::Center) {
+            self.option_panel = false;
+        }
         self.ctx.vbox_end();
         self.ctx.end();
     }
 
     fn options_panel(&mut self) {
-        let ctx = &mut self.ctx;
-        ctx.frame_begin(
+        self.ctx.frame_begin(
             "Options",
             50,
             40,
@@ -56,55 +61,70 @@ impl Astacia {
                 pos: Some((25, 5)),
             },
         );
-        ctx.label("Game settings", ui::TextAlign::Left);
-        ctx.grid_begin(2, 3, 15, 1, Default::default());
+        self.ctx.label("Game settings", ui::TextAlign::Left);
+        self.ctx.grid_begin(
+            2,
+            3,
+            20,
+            1,
+            ui::LayoutOptions {
+                padding: 1,
+                ..Default::default()
+            },
+        );
         {
-            ctx.label("Font :", ui::TextAlign::Right);
-            ctx.label("[ arial_8x8.png ]", ui::TextAlign::Left);
-            ctx.label("FPS :", ui::TextAlign::Right);
-            ctx.label("[ 30 ]", ui::TextAlign::Left);
-            ctx.label("Resolution :", ui::TextAlign::Right);
-            ctx.label("[ 128x96 ]", ui::TextAlign::Left);
+            self.drop_down("Font", "arial_8x8.png");
+            self.drop_down("FPS", "30");
+            self.drop_down("Resolution", "128x96");
         }
-        ctx.grid_end();
+        self.ctx.grid_end();
 
-        ctx.label("Controls", ui::TextAlign::Left);
-        ctx.grid_begin(2, 9, 15, 1, Default::default());
+        self.ctx.label("Controls", ui::TextAlign::Left);
+        self.ctx.grid_begin(
+            2,
+            9,
+            20,
+            1,
+            ui::LayoutOptions {
+                padding: 1,
+                ..Default::default()
+            },
+        );
         {
-            ctx.label("Move up :", ui::TextAlign::Right);
-            ctx.label("[ Arrow up    ]", ui::TextAlign::Left);
-            ctx.label("Move down :", ui::TextAlign::Right);
-            ctx.label("[ Arrow down  ]", ui::TextAlign::Left);
-            ctx.label("Move left :", ui::TextAlign::Right);
-            ctx.label("[ Arrow left  ]", ui::TextAlign::Left);
-            ctx.label("Move right :", ui::TextAlign::Right);
-            ctx.label("[ Arrow right ]", ui::TextAlign::Left);
-            ctx.label("Equipment :", ui::TextAlign::Right);
-            ctx.label("[ E           ]", ui::TextAlign::Left);
-            ctx.label("Inventory :", ui::TextAlign::Right);
-            ctx.label("[ I           ]", ui::TextAlign::Left);
-            ctx.label("Talk to NPC :", ui::TextAlign::Right);
-            ctx.label("[ T           ]", ui::TextAlign::Left);
-            ctx.label("Show message :", ui::TextAlign::Right);
-            ctx.label("[ M           ]", ui::TextAlign::Left);
-            ctx.label("Return / Menu :", ui::TextAlign::Right);
-            ctx.label("[ Escape      ]", ui::TextAlign::Left);
+            self.drop_down("Move up", "Arrow up");
+            self.drop_down("Move down", "Arrow down");
+            self.drop_down("Move left", "Arrow left");
+            self.drop_down("Move right", "Arrow right");
+            self.drop_down("Equipment", "E");
+            self.drop_down("Inventory", "I");
+            self.drop_down("Talk to NPC", "T");
+            self.drop_down("Show message", "M");
+            self.drop_down("Return / Menu", "ESC");
         }
-        ctx.grid_end();
-        ctx.hbox_begin(0, 1, Default::default());
-        if ctx.button("   Ok   ", ui::TextAlign::Left) {
+        self.ctx.grid_end();
+        self.ctx.hbox_begin(0, 1, Default::default());
+        if self.ctx.button("   Ok   ", ui::TextAlign::Left) {
             self.option_panel = false;
         }
-        if ctx.button(" Cancel ", ui::TextAlign::Left) {
+        if self.ctx.button(" Cancel ", ui::TextAlign::Left) {
             self.option_panel = false;
         }
-        ctx.hbox_end();
-        ctx.frame_end();
+        self.ctx.hbox_end();
+        self.ctx.frame_end();
+    }
+
+    fn drop_down(&mut self, label: &str, value: &str) {
+        self.ctx
+            .label(&format!("{} :", label), ui::TextAlign::Right);
+        self.ctx.label_color(
+            &format!("#[text][ #[grey]{:13}#[]    ]", value),
+            ui::TextAlign::Left,
+        );
     }
 }
 
 impl Engine for Astacia {
-    fn init(&mut self, _api: &mut dyn DoryenApi) {
+    fn init(&mut self, api: &mut dyn DoryenApi) {
         self.colormap
             .insert(ui::ColorCode::Background, (0, 0, 0, 255));
         self.colormap
@@ -117,6 +137,8 @@ impl Engine for Astacia {
             .insert(ui::ColorCode::ButtonBackgroundFocus, (100, 100, 100, 255));
         self.colormap
             .insert(ui::ColorCode::Text, (200, 200, 80, 255));
+        api.con().register_color("grey", (180, 180, 180, 255));
+        api.con().register_color("text", (200, 200, 80, 255));
     }
     fn update(&mut self, api: &mut dyn DoryenApi) {
         ui::update_doryen_input_data(api, &mut self.ctx);

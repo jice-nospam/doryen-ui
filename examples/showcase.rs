@@ -24,7 +24,7 @@ impl Showcase {
         let ctx = &mut self.ctx;
         ctx.begin();
         ctx.frame_begin("buttons", 17, 5, Default::default());
-        if ctx.button("button", ui::TextAlign::Center) {
+        if ctx.button("  button", ui::TextAlign::Left) {
             self.button_popup = true;
         }
         if self.button_popup {
@@ -42,10 +42,10 @@ impl Showcase {
             }
         }
         let toggle_opt = ui::ToggleOptions {
-            align: ui::TextAlign::Center,
+            align: ui::TextAlign::Left,
             ..Default::default()
         };
-        ctx.toggle("toggle", toggle_opt);
+        ctx.toggle("  toggle", toggle_opt);
         ctx.checkbox("checkbox", false);
         ctx.frame_end();
         ctx.frame_begin(
@@ -81,12 +81,17 @@ impl Showcase {
         ctx.toggle("4", toggle_opt);
         ctx.grid_end();
         ctx.frame_end();
+        ctx.frame_begin("labels", 17, 5, Default::default());
+        ctx.label("right",ui::TextAlign::Right);
+        ctx.label("center",ui::TextAlign::Center);
+        ctx.label_color("#[yellow]colored #[orange]labels", ui::TextAlign::Left);
+        ctx.frame_end();
         ctx.end();
     }
 }
 
 impl Engine for Showcase {
-    fn init(&mut self, _api: &mut dyn DoryenApi) {
+    fn init(&mut self, api: &mut dyn DoryenApi) {
         self.colormap
             .insert(ui::ColorCode::Background, (10, 10, 20, 255));
         self.colormap
@@ -99,6 +104,8 @@ impl Engine for Showcase {
             .insert(ui::ColorCode::ButtonBackgroundFocus, (60, 80, 100, 255));
         self.colormap
             .insert(ui::ColorCode::Text, (200, 220, 250, 255));
+        api.con().register_color("yellow",(200,200,100,255));
+        api.con().register_color("orange",(150,150,50,255));
     }
     fn update(&mut self, api: &mut dyn DoryenApi) {
         ui::update_doryen_input_data(api, &mut self.ctx);
