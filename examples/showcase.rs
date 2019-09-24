@@ -90,10 +90,16 @@ impl Showcase {
         ctx.label("center", ui::TextAlign::Center);
         ctx.label_color("#[yellow]colored #[orange]labels", ui::TextAlign::Left);
         ctx.frame_end();
-        ctx.frame_begin("trunc", 17, 5, Default::default());
+        ctx.frame_begin("truncation", 17, 5, Default::default());
         ctx.label("truncated right text", ui::TextAlign::Right);
         ctx.label("truncated centered text", ui::TextAlign::Center);
         ctx.label("truncated left text", ui::TextAlign::Left);
+        ctx.frame_end();
+        ctx.frame_begin("sliders", 17, 6, Default::default());
+        let value = ctx.fslider(15, 0.0, 10.0, 5.0);
+        ctx.label(&format!("{:.2}", value), ui::TextAlign::Left);
+        let value = ctx.islider(15, 0, 10, 5);
+        ctx.label(&format!("{}", value), ui::TextAlign::Left);
         ctx.frame_end();
         ctx.end();
     }

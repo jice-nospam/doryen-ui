@@ -50,6 +50,14 @@ impl From<&Rect> for Pos {
         Self { x: r.x, y: r.y }
     }
 }
+impl From<(f32, f32)> for Pos {
+    fn from(p: (f32, f32)) -> Self {
+        Self {
+            x: p.0 as Coord,
+            y: p.1 as Coord,
+        }
+    }
+}
 
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Rect {
@@ -111,19 +119,21 @@ pub struct Context {
     focus: usize,
     hover: usize,
     updated_focus: bool,
-    mouse_pos: Pos,
-    last_mouse_pos: Pos,
-    mouse_delta: Pos,
+    mouse_pos: (f32, f32),
     mouse_pressed: usize,
     mouse_down: usize,
     commands: Vec<Command>,
     layouts: Vec<Layout>,
     button_state: HashMap<usize, i32>,
+    slider_state: HashMap<usize, f32>,
     toggle_group: HashMap<usize, HashSet<usize>>,
     list_button_index: i32,
     list_button_width: Coord,
     list_button_label: String,
     list_button_align: TextAlign,
+    dnd_on: bool,
+    dnd_start: (f32, f32),
+    dnd_value: f32,
 }
 
 impl Context {
@@ -135,8 +145,8 @@ impl Context {
     // Input
     //
     // =======================================================
-    pub fn input_mouse_pos(&mut self, pos: Pos) {
-        self.mouse_pos = pos;
+    pub fn input_mouse_pos(&mut self, x: f32, y: f32) {
+        self.mouse_pos = (x, y);
     }
     pub fn input_mouse_down(&mut self, button: usize) {
         self.mouse_down |= button;
@@ -156,9 +166,6 @@ impl Context {
         self.layouts.push(Default::default());
     }
     pub fn end(&mut self) {
-        self.mouse_delta.x = self.mouse_pos.x - self.last_mouse_pos.x;
-        self.mouse_delta.y = self.mouse_pos.y - self.last_mouse_pos.y;
-        self.last_mouse_pos = self.mouse_pos;
         self.mouse_pressed = 0;
         self.id = 0;
         //println!("=================");
@@ -256,14 +263,13 @@ impl Context {
     pub fn separator(&mut self) {
         let r = self.next_rectangle(0, 0);
         self.draw_rect(r, ColorCode::Background);
-        self.commands.push(Command::Line(
-            r.into(),
-            Pos {
-                x: r.x + r.w - 1,
-                y: r.y + r.h - 1,
-            },
+        self.draw_line(
+            r.x,
+            r.y,
+            r.x + r.w - 1,
+            r.y + r.h - 1,
             ColorCode::Foreground,
-        ));
+        );
     }
 
     pub fn label(&mut self, label: &str, align: TextAlign) {
@@ -303,7 +309,7 @@ impl Context {
     pub fn button(&mut self, label: &str, align: TextAlign) -> bool {
         let id = self.next_id();
         let r = self.next_rectangle(label.chars().count() as Coord, 1);
-        self.update_control(id, &r);
+        self.update_control(id, &r, false);
         let focus = self.focus == id;
         let hover = self.hover == id;
         let pressed = hover && self.mouse_pressed == MOUSE_BUTTON_LEFT;
@@ -321,24 +327,31 @@ impl Context {
         self.draw_text(r, label, align, ColorCode::Text);
         pressed
     }
-    pub fn checkbox(&mut self, label: &str, checked: bool) -> bool {
+    /// same as toggle button, but displays a checkbox left to the label
+    /// returns (checkbox_status, status_has_changed_this_frame)
+    pub fn checkbox(&mut self, label: &str, initial_state: bool) -> (bool, bool) {
         let padded_label = "  ".to_owned() + label;
         let pressed = self.button(&padded_label, TextAlign::Left);
         let checked = {
             let checked = self
                 .button_state
                 .entry(self.id)
-                .or_insert(if checked { 1 } else { 0 });
+                .or_insert(if initial_state { 1 } else { 0 });
             if pressed {
                 *checked = 1 - *checked;
             }
             *checked
         };
         self.draw_checkbox(self.last_cursor(), checked == 1, ColorCode::Text);
-        checked == 1
+        (checked == 1, pressed)
     }
 
-    /// returns (toggle_status, has_changed_this_frame)
+    // =======================================================
+    //
+    // Toggle button
+    //
+    // =======================================================
+
     fn add_group_id(&mut self, group: usize, id: usize) {
         let ids = self.toggle_group.entry(group).or_insert_with(HashSet::new);
         ids.insert(id);
@@ -348,13 +361,15 @@ impl Context {
             self.button_state.insert(*id, 0);
         }
     }
+    /// a button that switches between active/inactive when clicked.
+    /// returns (button_status, status_has_changed_this_frame)
     pub fn toggle(&mut self, label: &str, opt: ToggleOptions) -> (bool, bool) {
         let id = self.next_id();
         if let Some(group) = opt.group {
             self.add_group_id(group, id);
         }
         let r = self.next_rectangle(label.chars().count() as Coord, 1);
-        self.update_control(id, &r);
+        self.update_control(id, &r, false);
         let focus = self.focus == id;
         let hover = self.hover == id;
         let pressed = hover && self.mouse_pressed == MOUSE_BUTTON_LEFT;
@@ -392,6 +407,13 @@ impl Context {
             .insert(toggle_id, if status { 1 } else { 0 });
     }
 
+    // =======================================================
+    //
+    // List button
+    //
+    // =======================================================
+
+    /// a button that cycles over a list of values when clicked
     pub fn list_button_begin(&mut self) {
         let id = self.next_id();
         self.list_button_index = 0;
@@ -417,9 +439,9 @@ impl Context {
         true
     }
 
-    /// close the list button value list.
+    /// end the value list.
     /// returns true if the current value has changed this frame
-    /// if display_count is true, shows the item index/count when the mouse is hovering the button
+    /// if display_count is true, shows the selected item index / items count when the mouse is hovering the button
     pub fn list_button_end(&mut self, display_count: bool) -> bool {
         let list_button_id = self.last_id();
         assert!(
@@ -428,7 +450,7 @@ impl Context {
         );
         self.list_button_width += 2;
         let r = self.next_rectangle(self.list_button_width, 1);
-        self.update_control(list_button_id, &r);
+        self.update_control(list_button_id, &r, false);
         let focus = self.focus == list_button_id;
         let hover = self.hover == list_button_id;
         let pressed = hover && self.mouse_pressed == MOUSE_BUTTON_LEFT;
@@ -469,6 +491,88 @@ impl Context {
 
     // =======================================================
     //
+    // Sliders
+    //
+    // =======================================================
+    pub fn fslider(&mut self, width: Coord, min_val: f32, max_val: f32, start_val: f32) -> f32 {
+        assert!(min_val < max_val);
+        assert!(start_val >= min_val && start_val <= max_val);
+        let id = self.next_id();
+        let value = *self.slider_state.entry(id).or_insert(start_val);
+        let r = self.next_rectangle(width, 1);
+        let was_focus = self.focus == id;
+        self.update_control(id, &r, true);
+        let focus = self.focus == id;
+        let hover = self.hover == id;
+        let pressed = focus && self.mouse_down == MOUSE_BUTTON_LEFT;
+        if pressed {
+            if !self.dnd_on {
+                self.start_dnd(value);
+            } else {
+                let delta = self.mouse_pos.0 - self.dnd_start.0;
+                let value_delta = delta as f32 * (max_val - min_val) / width as f32;
+                let new_value = (self.dnd_value + value_delta).max(min_val).min(max_val);
+                self.slider_state.insert(id, new_value);
+            }
+        } else if was_focus {
+            self.dnd_on = false;
+        }
+        let coef = (value - min_val) / (max_val - min_val);
+        let handle_pos = r.x + ((r.w as f32 * coef + 0.5) as Coord).min(r.w - 1);
+        self.draw_slider(r, handle_pos, focus || hover);
+        value
+    }
+
+    pub fn islider(&mut self, width: Coord, min_val: i32, max_val: i32, start_val: i32) -> i32 {
+        assert!(min_val < max_val);
+        assert!(start_val >= min_val && start_val <= max_val);
+        let id = self.next_id();
+        let value = *self.button_state.entry(id).or_insert(start_val);
+        let r = self.next_rectangle(width, 1);
+        let was_focus = self.focus == id;
+        self.update_control(id, &r, true);
+        let focus = self.focus == id;
+        let hover = self.hover == id;
+        let pressed = focus && self.mouse_down == MOUSE_BUTTON_LEFT;
+        if pressed {
+            if !self.dnd_on {
+                self.start_dnd(value as f32);
+            } else {
+                let delta = self.mouse_pos.0 - self.dnd_start.0;
+                let value_delta = delta as f32 * (max_val - min_val) as f32 / width as f32;
+                let new_value = ((self.dnd_value + value_delta) as i32)
+                    .max(min_val)
+                    .min(max_val);
+                self.button_state.insert(id, new_value);
+            }
+        } else if was_focus {
+            self.dnd_on = false;
+        }
+        let coef = (value - min_val) as f32 / (max_val - min_val) as f32;
+        let handle_pos = r.x + ((r.w as f32 * coef + 0.5) as Coord).min(r.w - 1);
+        self.draw_slider(r, handle_pos, focus || hover);
+        value
+    }
+
+    fn draw_slider(&mut self, r: Rect, handle_pos: Coord, active: bool) {
+        let col = if active {
+            ColorCode::ButtonBackgroundHover
+        } else {
+            ColorCode::ButtonBackground
+        };
+        self.draw_rect(r, col);
+        self.draw_line(r.x, r.y, r.x + r.w - 1, r.y + r.h - 1, ColorCode::Text);
+        let handle_area = Rect {
+            x: handle_pos,
+            y: r.y,
+            w: 1,
+            h: 1,
+        };
+        self.draw_text(handle_area, "|", TextAlign::Left, ColorCode::Text);
+    }
+
+    // =======================================================
+    //
     // Basic drawing functions
     //
     // =======================================================
@@ -477,6 +581,14 @@ impl Context {
     }
     fn draw_frame(&mut self, r: Rect, title: &str, col: ColorCode) {
         self.commands.push(Command::Frame(title.to_owned(), r, col));
+    }
+
+    fn draw_line(&mut self, x1: Coord, y1: Coord, x2: Coord, y2: Coord, col: ColorCode) {
+        self.commands.push(Command::Line(
+            Pos { x: x1, y: y1 },
+            Pos { x: x2, y: y2 },
+            col,
+        ));
     }
 
     fn draw_rect(&mut self, r: Rect, col: ColorCode) {
@@ -493,8 +605,8 @@ impl Context {
             .push(Command::TextColor(txt.to_owned(), r.into(), align));
     }
 
-    fn update_control(&mut self, id: usize, r: &Rect) {
-        let mouse_over = r.contains(self.mouse_pos);
+    fn update_control(&mut self, id: usize, r: &Rect, hold_focus: bool) {
+        let mouse_over = r.contains(self.mouse_pos.into());
         let pressed = self.mouse_pressed != 0;
         if mouse_over {
             self.hover = id;
@@ -503,10 +615,18 @@ impl Context {
             }
         } else {
             self.hover = 0;
-            if self.focus == id && pressed {
+            if !hold_focus && self.focus == id && pressed {
+                self.set_focus(0);
+            } else if hold_focus && self.focus == id && self.mouse_down == 0 {
                 self.set_focus(0);
             }
         }
+    }
+
+    fn start_dnd(&mut self, value: f32) {
+        self.dnd_on = true;
+        self.dnd_value = value;
+        self.dnd_start = self.mouse_pos;
     }
 
     fn set_focus(&mut self, id: usize) {

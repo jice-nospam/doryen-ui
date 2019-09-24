@@ -11,11 +11,7 @@ pub fn text_color_len(txt: &str) -> usize {
 pub fn update_doryen_input_data(api: &mut dyn DoryenApi, ctx: &mut Context) {
     let input = api.input();
     let (mx, my) = input.mouse_pos();
-    let mpos = Pos {
-        x: mx as i32,
-        y: my as i32,
-    };
-    ctx.input_mouse_pos(mpos);
+    ctx.input_mouse_pos(mx, my);
     if input.mouse_button_pressed(0) {
         ctx.input_mouse_down(1);
     } else if input.mouse_button_released(0) {
