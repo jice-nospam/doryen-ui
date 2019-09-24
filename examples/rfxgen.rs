@@ -7,7 +7,7 @@ use doryen_rs::{App, AppOptions, Color, DoryenApi, Engine};
 use doryen_ui as ui;
 
 const CONSOLE_WIDTH: u32 = 80;
-const CONSOLE_HEIGHT: u32 = 50;
+const CONSOLE_HEIGHT: u32 = 45;
 
 #[derive(Default)]
 struct RfxGen {
@@ -27,6 +27,7 @@ impl RfxGen {
             0,
             ui::LayoutOptions {
                 margin: 2,
+                padding: 1,
                 ..Default::default()
             },
         );
@@ -114,8 +115,163 @@ impl RfxGen {
             self.ctx.button("rand", "Randomize", ui::TextAlign::Center);
         }
         self.ctx.vbox_end();
+        self.ctx.vbox_begin(
+            "sliders",
+            40,
+            1,
+            ui::LayoutOptions {
+                padding: 1,
+                ..Default::default()
+            },
+        );
+        self.slider("volume", 0.0, 100.0, 60.0, true);
+        self.ctx.separator();
+        self.slider("attack time", 0.0, 1.0, 0.0, false);
+        self.slider("sustain time", 0.0, 1.0, 0.0, false);
+        self.slider("sustain punch", 0.0, 1.0, 0.0, false);
+        self.slider("decay time", 0.0, 1.0, 0.0, false);
+        self.ctx.separator();
+        self.slider("start frequency", 0.0, 1.0, 0.0, false);
+        self.slider("min frequency", 0.0, 1.0, 0.0, false);
+        self.slider("slide", 0.0, 1.0, 0.0, false);
+        self.slider("delta slide", 0.0, 1.0, 0.0, false);
+        self.slider("vibrato depth", 0.0, 1.0, 0.0, false);
+        self.slider("vibrato speed", 0.0, 1.0, 0.0, false);
+        self.ctx.separator();
+        self.slider("change amount", 0.0, 1.0, 0.0, false);
+        self.slider("change speed", 0.0, 1.0, 0.0, false);
+        self.ctx.separator();
+        self.slider("square duty", 0.0, 1.0, 0.0, false);
+        self.slider("duty sweep", 0.0, 1.0, 0.0, false);
+        self.ctx.separator();
+        self.slider("repeat speed", 0.0, 1.0, 0.0, false);
+        self.ctx.vbox_end();
+        self.ctx.vbox_begin(
+            "right_column",
+            16,
+            1,
+            ui::LayoutOptions {
+                padding: 1,
+                ..Default::default()
+            },
+        );
+        self.ctx.checkbox("play_on_change", "Play on change", true);
+        self.ctx.button(
+            "play",
+            &format!("{} Play Sound", 16 as char),
+            ui::TextAlign::Center,
+        );
+        self.ctx.hbox_begin(
+            "slots",
+            4,
+            1,
+            ui::LayoutOptions {
+                padding: 1,
+                ..Default::default()
+            },
+        );
+        self.ctx.label("Slot", ui::TextAlign::Right);
+        self.ctx.toggle(
+            "slot1",
+            "1",
+            ui::ToggleOptions {
+                active: true,
+                group: Some(2),
+                ..Default::default()
+            },
+        );
+        self.ctx.toggle(
+            "slot2",
+            "2",
+            ui::ToggleOptions {
+                group: Some(2),
+                ..Default::default()
+            },
+        );
+        self.ctx.toggle(
+            "slot3",
+            "3",
+            ui::ToggleOptions {
+                group: Some(2),
+                ..Default::default()
+            },
+        );
+        self.ctx.toggle(
+            "slot4",
+            "4",
+            ui::ToggleOptions {
+                group: Some(2),
+                ..Default::default()
+            },
+        );
+        self.ctx.hbox_end();
+        self.ctx.separator();
+        self.ctx.button(
+            "load",
+            &format!("{} Load Sound", 30 as char),
+            ui::TextAlign::Center,
+        );
+        self.ctx.button(
+            "save",
+            &format!("{} Save Sound", 31 as char),
+            ui::TextAlign::Center,
+        );
+        self.ctx.separator();
+        self.list_button("freq", &["44100 Hz", "22050 Hz"]);
+        self.list_button("bits", &["16 bit", "32 bit", "8 bit"]);
+        self.list_button("fmt", &["WAV", "MP3", "OGG"]);
+        self.ctx.button(
+            "export",
+            &format!("{} Export", 18 as char),
+            ui::TextAlign::Center,
+        );
+        self.ctx.separator();
+        self.ctx.label("Visual style :", ui::TextAlign::Left);
+        self.list_button("vstyle", &["default", "jungle", "candy", "lavanda"]);
+        self.ctx.toggle(
+            "screen",
+            "Screen size x2",
+            ui::ToggleOptions {
+                align: ui::TextAlign::Center,
+                ..Default::default()
+            },
+        );
+        self.ctx.separator();
+        self.ctx.button("about", "i ABOUT", ui::TextAlign::Center);
+        self.ctx.vbox_end();
         self.ctx.hbox_end();
         self.ctx.end();
+    }
+    fn list_button(&mut self, label: &str, values: &[&str]) {
+        self.ctx.list_button_begin(label);
+        for value in values {
+            self.ctx.list_button_item(value, ui::TextAlign::Left);
+        }
+        self.ctx.list_button_end(true);
+    }
+    fn slider(&mut self, label: &str, min_val: f32, max_val: f32, start_val: f32, use_int: bool) {
+        self.ctx.grid_begin(
+            label,
+            3,
+            1,
+            18,
+            1,
+            ui::LayoutOptions {
+                ..Default::default()
+            },
+        );
+        self.ctx.label(label, ui::TextAlign::Right);
+        if use_int {
+            let value =
+                self.ctx
+                    .islider("is", 10, min_val as i32, max_val as i32, start_val as i32);
+            self.ctx.label(&format!("{}", value), ui::TextAlign::Left);
+        } else {
+            let value = self.ctx.fslider("fs", 10, min_val, max_val, start_val);
+            self.ctx
+                .label(&format!("{:.2}", value), ui::TextAlign::Left);
+        }
+        self.ctx.grid_end();
     }
 }
 
@@ -124,7 +280,7 @@ impl Engine for RfxGen {
         self.colormap
             .insert(ui::ColorCode::Background, (245, 245, 245, 255));
         self.colormap
-            .insert(ui::ColorCode::Foreground, (200, 200, 255, 255));
+            .insert(ui::ColorCode::Foreground, (104, 104, 104, 255));
         self.colormap
             .insert(ui::ColorCode::ButtonBackground, (201, 201, 201, 255));
         self.colormap

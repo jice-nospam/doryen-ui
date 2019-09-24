@@ -69,8 +69,8 @@ fn render_line(con: &mut Console, p1: Pos, p2: Pos, col: Color) {
     con.area(
         p1.x,
         p1.y,
-        (p2.x - p1.x + 1) as u32,
-        (p2.y - p1.y + 1) as u32,
+        (p2.x - p1.x) as u32,
+        (p2.y - p1.y) as u32,
         Some(col),
         None,
         Some(CHAR_LINE_H),

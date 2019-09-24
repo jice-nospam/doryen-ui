@@ -306,13 +306,7 @@ impl Context {
     pub fn separator(&mut self) {
         let r = self.next_rectangle(0, 0);
         self.draw_rect(r, ColorCode::Background);
-        self.draw_line(
-            r.x,
-            r.y,
-            r.x + r.w - 1,
-            r.y + r.h - 1,
-            ColorCode::Foreground,
-        );
+        self.draw_line(r.x, r.y, r.x + r.w, r.y + r.h, ColorCode::Foreground);
     }
 
     pub fn label(&mut self, label: &str, align: TextAlign) {
@@ -614,7 +608,7 @@ impl Context {
             ColorCode::ButtonBackground
         };
         self.draw_rect(r, col);
-        self.draw_line(r.x, r.y, r.x + r.w - 1, r.y + r.h - 1, ColorCode::Text);
+        self.draw_line(r.x, r.y, r.x + r.w, r.y + r.h, ColorCode::Text);
         let handle_area = Rect {
             x: handle_pos,
             y: r.y,
