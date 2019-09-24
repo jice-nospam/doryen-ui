@@ -35,16 +35,16 @@ impl RfxGen {
             });
         {
             self.ctx.label("rFXGen v2.1", ui::TextAlign::Left);
-            self.ctx.button(&format!(" {} Pickup/Coin",184 as char), ui::TextAlign::Left);
-            self.ctx.button(&format!(" {}{} Laser/Shoot", 196 as char,15 as char), ui::TextAlign::Left);
-            self.ctx.button(&format!(" {} Explosion",15 as char), ui::TextAlign::Left);
-            self.ctx.button(&format!(" {} PowerUp",251 as char), ui::TextAlign::Left);
-            self.ctx.button(&format!(" {} Hit/Hurt", 2 as char), ui::TextAlign::Left);
-            self.ctx.button(" ^ Jump", ui::TextAlign::Left);
-            self.ctx.button(&format!(" {} Bip/Select", 26 as char), ui::TextAlign::Left);
+            self.ctx.button(&format!(" {}  Pickup/Coin",184 as char), ui::TextAlign::Left);
+            self.ctx.button(&format!(" {}* Laser/Shoot", 196 as char), ui::TextAlign::Left);
+            self.ctx.button(&format!(" {}  Explosion",15 as char), ui::TextAlign::Left);
+            self.ctx.button(&format!(" {}  PowerUp",251 as char), ui::TextAlign::Left);
+            self.ctx.button(&format!(" {}  Hit/Hurt", 2 as char), ui::TextAlign::Left);
+            self.ctx.button(" ^  Jump", ui::TextAlign::Left);
+            self.ctx.button(&format!(" {}  Bip/Select", 26 as char), ui::TextAlign::Left);
             self.ctx.separator();
             self.ctx.toggle(
-                " Square",
+                &format!(" {} Square",224 as char),
                 ui::ToggleOptions {
                     group: Some(1),
                     align: ui::TextAlign::Left,
@@ -52,7 +52,7 @@ impl RfxGen {
                 },
             );
             self.ctx.toggle(
-                " Sawtooth",
+                " ^ Sawtooth",
                 ui::ToggleOptions {
                     group: Some(1),
                     align: ui::TextAlign::Left,
@@ -60,7 +60,7 @@ impl RfxGen {
                 },
             );
             self.ctx.toggle(
-                " Sinwave",
+                " ~ Sinwave",
                 ui::ToggleOptions {
                     group: Some(1),
                     align: ui::TextAlign::Left,
@@ -68,7 +68,7 @@ impl RfxGen {
                 },
             );
             self.ctx.toggle(
-                "Noise",
+                &format!(" {} Noise",176 as char),
                 ui::ToggleOptions {
                     group: Some(1),
                     align: ui::TextAlign::Left,

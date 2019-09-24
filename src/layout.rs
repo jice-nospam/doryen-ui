@@ -62,7 +62,7 @@ impl Layout {
         l.grid_cols = cols;
         l.grid_rows = rows;
         l
-    }
+    }    
     fn next_grid_cell(&mut self, width: Coord, height: Coord) -> Rect {
         if !self.padded_child {
             self.last_cursor = self.cursor;

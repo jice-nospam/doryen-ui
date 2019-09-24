@@ -86,6 +86,11 @@ impl Showcase {
         ctx.label("center", ui::TextAlign::Center);
         ctx.label_color("#[yellow]colored #[orange]labels", ui::TextAlign::Left);
         ctx.frame_end();
+        ctx.frame_begin("trunc", 17, 5, Default::default());
+        ctx.label("truncated right text", ui::TextAlign::Right);
+        ctx.label("truncated centered text", ui::TextAlign::Center);
+        ctx.label("truncated left text", ui::TextAlign::Left);
+        ctx.frame_end();
         ctx.end();
     }
 }

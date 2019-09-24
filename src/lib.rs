@@ -433,13 +433,13 @@ fn format_text(r: Rect, txt: &str, align: TextAlign) -> (Pos, String) {
     let truncated_txt: String;
     let len = txt.chars().count() as Coord;
     match align {
-        TextAlign::Left => truncated_txt = txt[0..r.w.min(len) as usize].to_owned(),
+        TextAlign::Left => truncated_txt = txt.chars().take(r.w.min(len) as usize).collect::<String>(),
         TextAlign::Right => {
-            p.x = p.x + r.w - len;
-            if p.x < 0 {
-                truncated_txt = txt[(-p.x) as usize..].to_owned();
-                p.x = 0;
+            let newx = p.x + r.w - len;
+            if newx < p.x {
+                truncated_txt = txt.chars().skip((p.x- newx) as usize).collect::<String>();
             } else {
+                p.x=newx;
                 truncated_txt = txt.to_owned();
             }
         }
@@ -448,11 +448,11 @@ fn format_text(r: Rect, txt: &str, align: TextAlign) -> (Pos, String) {
                 let to_remove = (len - r.w) as usize;
                 let start = (to_remove / 2) as usize;
                 let end = (len as usize - (to_remove - start)) as usize;
-                truncated_txt = txt[start..end].to_owned();
+                truncated_txt = txt.chars().skip(start).take(end-start).collect::<String>();
             } else {
                 truncated_txt = txt.to_owned();
+                p.x = p.x + r.w / 2 - len / 2;
             }
-            p.x = p.x + r.w / 2 - len / 2;
         }
     };
     (p, truncated_txt)
