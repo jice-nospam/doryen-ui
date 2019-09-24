@@ -118,8 +118,12 @@ pub struct Context {
     mouse_down: usize,
     commands: Vec<Command>,
     layouts: Vec<Layout>,
-    button_state: HashMap<usize, bool>,
+    button_state: HashMap<usize, i32>,
     toggle_group: HashMap<usize, HashSet<usize>>,
+    list_button_index: i32,
+    list_button_width: Coord,
+    list_button_label: String,
+    list_button_align: TextAlign,
 }
 
 impl Context {
@@ -302,7 +306,7 @@ impl Context {
         self.update_control(id, &r);
         let focus = self.focus == id;
         let hover = self.hover == id;
-        let pressed = focus && self.mouse_pressed == MOUSE_BUTTON_LEFT;
+        let pressed = hover && self.mouse_pressed == MOUSE_BUTTON_LEFT;
         //println!("{}: {} {} {}",id, focus,hover,pressed);
         self.draw_rect(
             r,
@@ -321,14 +325,17 @@ impl Context {
         let padded_label = "  ".to_owned() + label;
         let pressed = self.button(&padded_label, TextAlign::Left);
         let checked = {
-            let checked = self.button_state.entry(self.id).or_insert(checked);
+            let checked = self
+                .button_state
+                .entry(self.id)
+                .or_insert(if checked { 1 } else { 0 });
             if pressed {
-                *checked = !*checked;
+                *checked = 1 - *checked;
             }
             *checked
         };
-        self.draw_checkbox(self.last_cursor(), checked, ColorCode::Text);
-        checked
+        self.draw_checkbox(self.last_cursor(), checked == 1, ColorCode::Text);
+        checked == 1
     }
 
     /// returns (toggle_status, has_changed_this_frame)
@@ -338,7 +345,7 @@ impl Context {
     }
     fn disable_toggle_group(&mut self, group: usize) {
         for id in self.toggle_group.get(&group).unwrap() {
-            self.button_state.insert(*id, false);
+            self.button_state.insert(*id, 0);
         }
     }
     pub fn toggle(&mut self, label: &str, opt: ToggleOptions) -> (bool, bool) {
@@ -350,8 +357,12 @@ impl Context {
         self.update_control(id, &r);
         let focus = self.focus == id;
         let hover = self.hover == id;
-        let pressed = focus && hover && self.mouse_pressed == MOUSE_BUTTON_LEFT;
-        let mut on = *self.button_state.get(&self.id).unwrap_or(&opt.active);
+        let pressed = hover && self.mouse_pressed == MOUSE_BUTTON_LEFT;
+        let mut on = *self
+            .button_state
+            .get(&self.id)
+            .unwrap_or(if opt.active { &1 } else { &0 })
+            == 1;
         let mut changed = false;
         if pressed {
             if !on {
@@ -362,7 +373,7 @@ impl Context {
             changed = true;
             on = !on;
         }
-        self.button_state.insert(id, on);
+        self.button_state.insert(id, if on { 1 } else { 0 });
         self.draw_rect(
             r,
             if on && !hover {
@@ -377,7 +388,83 @@ impl Context {
         (on, changed)
     }
     pub fn set_toggle_status(&mut self, toggle_id: usize, status: bool) {
-        self.button_state.insert(toggle_id, status);
+        self.button_state
+            .insert(toggle_id, if status { 1 } else { 0 });
+    }
+
+    pub fn list_button_begin(&mut self) {
+        let id = self.next_id();
+        self.list_button_index = 0;
+        self.list_button_width = 0;
+        self.button_state.entry(id).or_insert(0);
+    }
+
+    /// add a new item in the list of values
+    /// returns true if this is the current value
+    pub fn list_button_item(&mut self, label: &str, align: TextAlign) -> bool {
+        self.list_button_width = self.list_button_width.max(label.chars().count() as Coord);
+        let list_button_id = self.last_id();
+        self.list_button_index += 1;
+        assert!(
+            self.button_state.get(&list_button_id).is_some(),
+            "list_button_item must be called inside list_button_begin/list_button_end"
+        );
+        if *self.button_state.get(&list_button_id).unwrap() != self.list_button_index - 1 {
+            return false;
+        }
+        self.list_button_label = label.to_owned();
+        self.list_button_align = align;
+        true
+    }
+
+    /// close the list button value list.
+    /// returns true if the current value has changed this frame
+    /// if display_count is true, shows the item index/count when the mouse is hovering the button
+    pub fn list_button_end(&mut self, display_count: bool) -> bool {
+        let list_button_id = self.last_id();
+        assert!(
+            self.button_state.get(&list_button_id).is_some(),
+            "list_button_end must be called after list_button_begin"
+        );
+        self.list_button_width += 2;
+        let r = self.next_rectangle(self.list_button_width, 1);
+        self.update_control(list_button_id, &r);
+        let focus = self.focus == list_button_id;
+        let hover = self.hover == list_button_id;
+        let pressed = hover && self.mouse_pressed == MOUSE_BUTTON_LEFT;
+        //println!("{}: {} {} {}",list_button_id, focus,hover,pressed);
+        let cur_index = *self.button_state.get(&list_button_id).unwrap();
+        if pressed {
+            let next_index = (cur_index + 1) % self.list_button_index;
+            self.button_state.insert(list_button_id, next_index);
+        }
+        self.draw_rect(
+            r,
+            if hover {
+                ColorCode::ButtonBackgroundHover
+            } else if focus {
+                ColorCode::ButtonBackgroundFocus
+            } else {
+                ColorCode::ButtonBackground
+            },
+        );
+        let label = if hover && display_count {
+            let mut label = self.list_button_label.clone();
+            let label_len = label.chars().count();
+            let suffix = format!("|{}/{}", cur_index + 1, self.list_button_index);
+            let suffix_len = suffix.len();
+            if suffix_len + label_len > r.w as usize {
+                label = label
+                    .chars()
+                    .take(r.w as usize - suffix_len)
+                    .collect::<String>();
+            }
+            label + &suffix
+        } else {
+            self.list_button_label.clone()
+        };
+        self.draw_text(r, &label, self.list_button_align, ColorCode::Text);
+        pressed
     }
 
     // =======================================================
@@ -433,13 +520,15 @@ fn format_text(r: Rect, txt: &str, align: TextAlign) -> (Pos, String) {
     let truncated_txt: String;
     let len = txt.chars().count() as Coord;
     match align {
-        TextAlign::Left => truncated_txt = txt.chars().take(r.w.min(len) as usize).collect::<String>(),
+        TextAlign::Left => {
+            truncated_txt = txt.chars().take(r.w.min(len) as usize).collect::<String>()
+        }
         TextAlign::Right => {
             let newx = p.x + r.w - len;
             if newx < p.x {
-                truncated_txt = txt.chars().skip((p.x- newx) as usize).collect::<String>();
+                truncated_txt = txt.chars().skip((p.x - newx) as usize).collect::<String>();
             } else {
-                p.x=newx;
+                p.x = newx;
                 truncated_txt = txt.to_owned();
             }
         }
@@ -448,7 +537,11 @@ fn format_text(r: Rect, txt: &str, align: TextAlign) -> (Pos, String) {
                 let to_remove = (len - r.w) as usize;
                 let start = (to_remove / 2) as usize;
                 let end = (len as usize - (to_remove - start)) as usize;
-                truncated_txt = txt.chars().skip(start).take(end-start).collect::<String>();
+                truncated_txt = txt
+                    .chars()
+                    .skip(start)
+                    .take(end - start)
+                    .collect::<String>();
             } else {
                 truncated_txt = txt.to_owned();
                 p.x = p.x + r.w / 2 - len / 2;

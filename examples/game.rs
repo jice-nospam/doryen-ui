@@ -65,17 +65,17 @@ impl Astacia {
         self.ctx.grid_begin(
             2,
             3,
-            20,
-            1,
+            22,
+            2,
             ui::LayoutOptions {
                 padding: 1,
                 ..Default::default()
             },
         );
         {
-            self.drop_down("Font", "arial_8x8.png");
-            self.drop_down("FPS", "30");
-            self.drop_down("Resolution", "128x96");
+            self.list_button("Font", &["arial_8x8.png", "consolas_12x12.png"]);
+            self.list_button("FPS", &["30", "60"]);
+            self.list_button("Resolution", &["128x96", "96x72", "80x50"]);
         }
         self.ctx.grid_end();
 
@@ -83,23 +83,23 @@ impl Astacia {
         self.ctx.grid_begin(
             2,
             9,
-            20,
-            1,
+            22,
+            2,
             ui::LayoutOptions {
                 padding: 1,
                 ..Default::default()
             },
         );
         {
-            self.drop_down("Move up", "Arrow up");
-            self.drop_down("Move down", "Arrow down");
-            self.drop_down("Move left", "Arrow left");
-            self.drop_down("Move right", "Arrow right");
-            self.drop_down("Equipment", "E");
-            self.drop_down("Inventory", "I");
-            self.drop_down("Talk to NPC", "T");
-            self.drop_down("Show message", "M");
-            self.drop_down("Return / Menu", "ESC");
+            self.list_button("Move up", &["Arrow up"]);
+            self.list_button("Move down", &["Arrow down"]);
+            self.list_button("Move left", &["Arrow left"]);
+            self.list_button("Move right", &["Arrow right"]);
+            self.list_button("Equipment", &["E"]);
+            self.list_button("Inventory", &["I"]);
+            self.list_button("Talk to NPC", &["T"]);
+            self.list_button("Show message", &["M"]);
+            self.list_button("Return / Menu", &["ESC"]);
         }
         self.ctx.grid_end();
         self.ctx.hbox_begin(0, 1, Default::default());
@@ -113,13 +113,14 @@ impl Astacia {
         self.ctx.frame_end();
     }
 
-    fn drop_down(&mut self, label: &str, value: &str) {
+    fn list_button(&mut self, label: &str, values: &[&str]) {
         self.ctx
             .label(&format!("{} :", label), ui::TextAlign::Right);
-        self.ctx.label_color(
-            &format!("#[text][ #[grey]{:13}#[]    ]", value),
-            ui::TextAlign::Left,
-        );
+        self.ctx.list_button_begin();
+        for value in values {
+            self.ctx.list_button_item(value, ui::TextAlign::Left);
+        }
+        self.ctx.list_button_end(true);
     }
 }
 

@@ -23,7 +23,7 @@ impl Showcase {
     fn build_ui(&mut self) {
         let ctx = &mut self.ctx;
         ctx.begin();
-        ctx.frame_begin("buttons", 17, 5, Default::default());
+        ctx.frame_begin("buttons", 17, 6, Default::default());
         if ctx.button("  button", ui::TextAlign::Left) {
             self.button_popup = true;
         }
@@ -47,6 +47,10 @@ impl Showcase {
         };
         ctx.toggle("  toggle", toggle_opt);
         ctx.checkbox("checkbox", false);
+        ctx.list_button_begin();
+        ctx.list_button_item("list value 1", ui::TextAlign::Center);
+        ctx.list_button_item("list value 2", ui::TextAlign::Center);
+        ctx.list_button_end(true);
         ctx.frame_end();
         ctx.frame_begin(
             "margin",

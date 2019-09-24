@@ -25,26 +25,40 @@ impl RfxGen {
             20,
             0,
             ui::LayoutOptions {
-                margin:2,
+                margin: 2,
                 ..Default::default()
             },
         );
-        self.ctx.vbox_begin(20, 1, ui::LayoutOptions {
+        self.ctx.vbox_begin(
+            20,
+            1,
+            ui::LayoutOptions {
                 padding: 1,
                 ..Default::default()
-            });
+            },
+        );
         {
             self.ctx.label("rFXGen v2.1", ui::TextAlign::Left);
-            self.ctx.button(&format!(" {}  Pickup/Coin",184 as char), ui::TextAlign::Left);
-            self.ctx.button(&format!(" {}* Laser/Shoot", 196 as char), ui::TextAlign::Left);
-            self.ctx.button(&format!(" {}  Explosion",15 as char), ui::TextAlign::Left);
-            self.ctx.button(&format!(" {}  PowerUp",251 as char), ui::TextAlign::Left);
-            self.ctx.button(&format!(" {}  Hit/Hurt", 2 as char), ui::TextAlign::Left);
+            self.ctx.button(
+                &format!(" {}  Pickup/Coin", 184 as char),
+                ui::TextAlign::Left,
+            );
+            self.ctx.button(
+                &format!(" {}* Laser/Shoot", 196 as char),
+                ui::TextAlign::Left,
+            );
+            self.ctx
+                .button(&format!(" {}  Explosion", 15 as char), ui::TextAlign::Left);
+            self.ctx
+                .button(&format!(" {}  PowerUp", 251 as char), ui::TextAlign::Left);
+            self.ctx
+                .button(&format!(" {}  Hit/Hurt", 2 as char), ui::TextAlign::Left);
             self.ctx.button(" ^  Jump", ui::TextAlign::Left);
-            self.ctx.button(&format!(" {}  Bip/Select", 26 as char), ui::TextAlign::Left);
+            self.ctx
+                .button(&format!(" {}  Bip/Select", 26 as char), ui::TextAlign::Left);
             self.ctx.separator();
             self.ctx.toggle(
-                &format!(" {} Square",224 as char),
+                &format!(" {} Square", 224 as char),
                 ui::ToggleOptions {
                     group: Some(1),
                     align: ui::TextAlign::Left,
@@ -68,7 +82,7 @@ impl RfxGen {
                 },
             );
             self.ctx.toggle(
-                &format!(" {} Noise",176 as char),
+                &format!(" {} Noise", 176 as char),
                 ui::ToggleOptions {
                     group: Some(1),
                     align: ui::TextAlign::Left,
