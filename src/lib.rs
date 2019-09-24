@@ -1,4 +1,6 @@
+use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet};
+use std::hash::{Hash, Hasher};
 
 #[cfg(feature = "doryen")]
 mod doryen;
@@ -33,6 +35,8 @@ impl Default for TextAlign {
 }
 
 pub type Coord = i32;
+pub type Id = u64;
+const NULL_ID: Id = 0;
 
 #[derive(Clone, Copy, Default, Debug, PartialEq, Eq)]
 pub struct Pos {
@@ -115,22 +119,28 @@ pub struct ToggleOptions {
 
 #[derive(Default)]
 pub struct Context {
-    id: usize,
-    focus: usize,
-    hover: usize,
-    updated_focus: bool,
+    // id generation
+    last_id: Id,
+    id_prefix: Vec<String>,
+    // user input data
     mouse_pos: (f32, f32),
     mouse_pressed: usize,
     mouse_down: usize,
+    // rendering
     commands: Vec<Command>,
     layouts: Vec<Layout>,
-    button_state: HashMap<usize, i32>,
-    slider_state: HashMap<usize, f32>,
-    toggle_group: HashMap<usize, HashSet<usize>>,
+    // state management
+    focus: Id,
+    hover: Id,
+    button_state: HashMap<Id, i32>,
+    slider_state: HashMap<Id, f32>,
+    toggle_group: HashMap<usize, HashSet<Id>>,
+    // list-buttons
     list_button_index: i32,
     list_button_width: Coord,
     list_button_label: String,
     list_button_align: TextAlign,
+    // drag'n drop
     dnd_on: bool,
     dnd_start: (f32, f32),
     dnd_value: f32,
@@ -167,8 +177,8 @@ impl Context {
     }
     pub fn end(&mut self) {
         self.mouse_pressed = 0;
-        self.id = 0;
-        //println!("=================");
+        self.last_id = NULL_ID.to_owned();
+        self.id_prefix.clear();
     }
     pub fn render(&mut self, renderer: &mut impl Renderer) {
         for c in self.commands.iter() {
@@ -185,8 +195,19 @@ impl Context {
     pub fn get_render_commands(&mut self) -> &Vec<Command> {
         &self.commands
     }
-    pub fn last_id(&self) -> usize {
-        self.id
+    // =======================================================
+    //
+    // Id management
+    //
+    // =======================================================
+    fn generate_id(&mut self, name: &str) -> Id {
+        let mut hasher = DefaultHasher::new();
+        (self.id_prefix.join("/") + "/" + name).hash(&mut hasher);
+        self.last_id = hasher.finish();
+        self.last_id
+    }
+    pub fn last_id(&self) -> Id {
+        self.last_id
     }
     // =======================================================
     //
@@ -195,12 +216,14 @@ impl Context {
     // =======================================================
     pub fn grid_begin(
         &mut self,
+        id: &str,
         cols: usize,
         rows: usize,
         width: Coord,
         height: Coord,
         opt: LayoutOptions,
     ) {
+        self.id_prefix.push(id.to_owned());
         let mut r = self.next_layout_area(width * cols as Coord, height * rows as Coord, opt);
         r.w = width;
         r.h = height;
@@ -210,8 +233,10 @@ impl Context {
     }
     pub fn grid_end(&mut self) {
         self.layouts.pop();
+        self.id_prefix.pop();
     }
-    pub fn vbox_begin(&mut self, width: Coord, height: Coord, opt: LayoutOptions) {
+    pub fn vbox_begin(&mut self, id: &str, width: Coord, height: Coord, opt: LayoutOptions) {
+        self.id_prefix.push(id.to_owned());
         let r = self.next_layout_area(width, height, opt);
         let layout = Layout::new(LayoutMode::Vertical, r, opt.margin, opt.padding);
         //println!("v {:?}", layout);
@@ -219,8 +244,10 @@ impl Context {
     }
     pub fn vbox_end(&mut self) {
         self.layouts.pop();
+        self.id_prefix.pop();
     }
-    pub fn hbox_begin(&mut self, width: Coord, height: Coord, opt: LayoutOptions) {
+    pub fn hbox_begin(&mut self, id: &str, width: Coord, height: Coord, opt: LayoutOptions) {
+        self.id_prefix.push(id.to_owned());
         let r = self.next_layout_area(width, height, opt);
         let layout = Layout::new(LayoutMode::Horizontal, r, opt.margin, opt.padding);
         //println!("h {:?}", layout);
@@ -228,9 +255,18 @@ impl Context {
     }
     pub fn hbox_end(&mut self) {
         self.layouts.pop();
+        self.id_prefix.pop();
     }
-    pub fn frame_begin(&mut self, title: &str, width: Coord, height: Coord, opt: LayoutOptions) {
+    pub fn frame_begin(
+        &mut self,
+        id: &str,
+        title: &str,
+        width: Coord,
+        height: Coord,
+        opt: LayoutOptions,
+    ) {
         self.vbox_begin(
+            id,
             width.max((title.chars().count() + 2) as Coord),
             height,
             LayoutOptions {
@@ -247,11 +283,18 @@ impl Context {
     pub fn frame_end(&mut self) {
         self.vbox_end();
     }
-    pub fn popup_begin(&mut self, title: &str, width: Coord, height: Coord, opt: LayoutOptions) {
-        self.frame_begin(title, width, height, opt);
+    pub fn popup_begin(
+        &mut self,
+        id: &str,
+        title: &str,
+        width: Coord,
+        height: Coord,
+        opt: LayoutOptions,
+    ) {
+        self.frame_begin(id, title, width, height, opt);
     }
     pub fn popup_end(&mut self) -> bool {
-        let ret = self.button("Ok", TextAlign::Center);
+        let ret = self.button("popup_ok", "Ok", TextAlign::Center);
         self.frame_end();
         ret
     }
@@ -288,10 +331,6 @@ impl Context {
     // Buttons
     //
     // =======================================================
-    fn next_id(&mut self) -> usize {
-        self.id += 1;
-        self.id
-    }
     fn next_rectangle(&mut self, width: Coord, height: Coord) -> Rect {
         self.layouts.last_mut().unwrap().next_area(width, height)
         //println!("w {:?}", layout);
@@ -306,8 +345,8 @@ impl Context {
             self.layouts.last_mut().unwrap().next_area(w, h)
         }
     }
-    pub fn button(&mut self, label: &str, align: TextAlign) -> bool {
-        let id = self.next_id();
+    pub fn button(&mut self, id: &str, label: &str, align: TextAlign) -> bool {
+        let id = self.generate_id(id);
         let r = self.next_rectangle(label.chars().count() as Coord, 1);
         self.update_control(id, &r, false);
         let focus = self.focus == id;
@@ -329,13 +368,13 @@ impl Context {
     }
     /// same as toggle button, but displays a checkbox left to the label
     /// returns (checkbox_status, status_has_changed_this_frame)
-    pub fn checkbox(&mut self, label: &str, initial_state: bool) -> (bool, bool) {
+    pub fn checkbox(&mut self, id: &str, label: &str, initial_state: bool) -> (bool, bool) {
         let padded_label = "  ".to_owned() + label;
-        let pressed = self.button(&padded_label, TextAlign::Left);
+        let pressed = self.button(id, &padded_label, TextAlign::Left);
         let checked = {
             let checked = self
                 .button_state
-                .entry(self.id)
+                .entry(self.last_id)
                 .or_insert(if initial_state { 1 } else { 0 });
             if pressed {
                 *checked = 1 - *checked;
@@ -352,7 +391,7 @@ impl Context {
     //
     // =======================================================
 
-    fn add_group_id(&mut self, group: usize, id: usize) {
+    fn add_group_id(&mut self, group: usize, id: Id) {
         let ids = self.toggle_group.entry(group).or_insert_with(HashSet::new);
         ids.insert(id);
     }
@@ -363,8 +402,8 @@ impl Context {
     }
     /// a button that switches between active/inactive when clicked.
     /// returns (button_status, status_has_changed_this_frame)
-    pub fn toggle(&mut self, label: &str, opt: ToggleOptions) -> (bool, bool) {
-        let id = self.next_id();
+    pub fn toggle(&mut self, id: &str, label: &str, opt: ToggleOptions) -> (bool, bool) {
+        let id = self.generate_id(id);
         if let Some(group) = opt.group {
             self.add_group_id(group, id);
         }
@@ -375,7 +414,7 @@ impl Context {
         let pressed = hover && self.mouse_pressed == MOUSE_BUTTON_LEFT;
         let mut on = *self
             .button_state
-            .get(&self.id)
+            .get(&self.last_id)
             .unwrap_or(if opt.active { &1 } else { &0 })
             == 1;
         let mut changed = false;
@@ -402,7 +441,7 @@ impl Context {
         self.draw_text(r, label, opt.align, ColorCode::Text);
         (on, changed)
     }
-    pub fn set_toggle_status(&mut self, toggle_id: usize, status: bool) {
+    pub fn set_toggle_status(&mut self, toggle_id: Id, status: bool) {
         self.button_state
             .insert(toggle_id, if status { 1 } else { 0 });
     }
@@ -414,8 +453,8 @@ impl Context {
     // =======================================================
 
     /// a button that cycles over a list of values when clicked
-    pub fn list_button_begin(&mut self) {
-        let id = self.next_id();
+    pub fn list_button_begin(&mut self, id: &str) {
+        let id = self.generate_id(id);
         self.list_button_index = 0;
         self.list_button_width = 0;
         self.button_state.entry(id).or_insert(0);
@@ -494,10 +533,17 @@ impl Context {
     // Sliders
     //
     // =======================================================
-    pub fn fslider(&mut self, width: Coord, min_val: f32, max_val: f32, start_val: f32) -> f32 {
+    pub fn fslider(
+        &mut self,
+        id1: &str,
+        width: Coord,
+        min_val: f32,
+        max_val: f32,
+        start_val: f32,
+    ) -> f32 {
         assert!(min_val < max_val);
         assert!(start_val >= min_val && start_val <= max_val);
-        let id = self.next_id();
+        let id = self.generate_id(id1);
         let value = *self.slider_state.entry(id).or_insert(start_val);
         let r = self.next_rectangle(width, 1);
         let was_focus = self.focus == id;
@@ -523,10 +569,17 @@ impl Context {
         value
     }
 
-    pub fn islider(&mut self, width: Coord, min_val: i32, max_val: i32, start_val: i32) -> i32 {
+    pub fn islider(
+        &mut self,
+        id: &str,
+        width: Coord,
+        min_val: i32,
+        max_val: i32,
+        start_val: i32,
+    ) -> i32 {
         assert!(min_val < max_val);
         assert!(start_val >= min_val && start_val <= max_val);
-        let id = self.next_id();
+        let id = self.generate_id(id);
         let value = *self.button_state.entry(id).or_insert(start_val);
         let r = self.next_rectangle(width, 1);
         let was_focus = self.focus == id;
@@ -605,7 +658,7 @@ impl Context {
             .push(Command::TextColor(txt.to_owned(), r.into(), align));
     }
 
-    fn update_control(&mut self, id: usize, r: &Rect, hold_focus: bool) {
+    fn update_control(&mut self, id: Id, r: &Rect, hold_focus: bool) {
         let mouse_over = r.contains(self.mouse_pos.into());
         let pressed = self.mouse_pressed != 0;
         if mouse_over {
@@ -614,11 +667,11 @@ impl Context {
                 self.set_focus(id);
             }
         } else {
-            self.hover = 0;
-            if !hold_focus && self.focus == id && pressed {
-                self.set_focus(0);
-            } else if hold_focus && self.focus == id && self.mouse_down == 0 {
-                self.set_focus(0);
+            self.hover = NULL_ID.to_owned();
+            if self.focus == id
+                && ((!hold_focus && pressed) || (hold_focus && self.mouse_down == 0))
+            {
+                self.set_focus(NULL_ID.to_owned());
             }
         }
     }
@@ -629,9 +682,8 @@ impl Context {
         self.dnd_start = self.mouse_pos;
     }
 
-    fn set_focus(&mut self, id: usize) {
+    fn set_focus(&mut self, id: Id) {
         self.focus = id;
-        self.updated_focus = true;
     }
 }
 
@@ -743,7 +795,7 @@ mod tests {
         let mut rend = AsciiRenderer::new();
         let mut ctx = ui::Context::new();
         ctx.begin();
-        ctx.button("test", ui::TextAlign::Left);
+        ctx.button("0", "test", ui::TextAlign::Left);
         ctx.end();
         ctx.render(&mut rend);
         assert!(rend.assert("test", 0, 0));
@@ -753,7 +805,7 @@ mod tests {
         let mut rend = AsciiRenderer::new();
         let mut ctx = ui::Context::new();
         ctx.begin();
-        ctx.vbox_begin(1, 0, Default::default());
+        ctx.vbox_begin("0", 1, 0, Default::default());
         ctx.label("1", ui::TextAlign::Left);
         ctx.label("2", ui::TextAlign::Left);
         ctx.vbox_end();
@@ -767,7 +819,7 @@ mod tests {
         let mut rend = AsciiRenderer::new();
         let mut ctx = ui::Context::new();
         ctx.begin();
-        ctx.hbox_begin(0, 1, Default::default());
+        ctx.hbox_begin("0", 0, 1, Default::default());
         ctx.label("1", ui::TextAlign::Left);
         ctx.label("2", ui::TextAlign::Left);
         ctx.hbox_end();
@@ -782,6 +834,7 @@ mod tests {
         let mut ctx = ui::Context::new();
         ctx.begin();
         ctx.vbox_begin(
+            "0",
             3,
             0,
             ui::LayoutOptions {
@@ -803,6 +856,7 @@ mod tests {
         let mut ctx = ui::Context::new();
         ctx.begin();
         ctx.vbox_begin(
+            "0",
             3,
             0,
             ui::LayoutOptions {

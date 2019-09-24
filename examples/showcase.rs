@@ -23,12 +23,13 @@ impl Showcase {
     fn build_ui(&mut self) {
         let ctx = &mut self.ctx;
         ctx.begin();
-        ctx.frame_begin("buttons", 17, 6, Default::default());
-        if ctx.button("  button", ui::TextAlign::Left) {
+        ctx.frame_begin("buttons", "buttons", 17, 6, Default::default());
+        if ctx.button("button", "  button", ui::TextAlign::Left) {
             self.button_popup = true;
         }
         if self.button_popup {
             ctx.popup_begin(
+                "button_msg",
                 "button pressed!",
                 19,
                 3,
@@ -45,14 +46,15 @@ impl Showcase {
             align: ui::TextAlign::Left,
             ..Default::default()
         };
-        ctx.toggle("  toggle", toggle_opt);
-        ctx.checkbox("checkbox", false);
-        ctx.list_button_begin();
+        ctx.toggle("toggle", "  toggle", toggle_opt);
+        ctx.checkbox("checkbox", "checkbox", false);
+        ctx.list_button_begin("list_button");
         ctx.list_button_item("list value 1", ui::TextAlign::Center);
         ctx.list_button_item("list value 2", ui::TextAlign::Center);
         ctx.list_button_end(true);
         ctx.frame_end();
         ctx.frame_begin(
+            "margin",
             "margin",
             17,
             7,
@@ -61,10 +63,11 @@ impl Showcase {
                 ..Default::default()
             },
         );
-        ctx.toggle("margin", toggle_opt);
+        ctx.toggle("margin", "margin", toggle_opt);
         ctx.frame_end();
-        ctx.frame_begin("padding", 17, 3, Default::default());
+        ctx.frame_begin("padding", "padding", 17, 3, Default::default());
         ctx.hbox_begin(
+            "pad_hbox",
             0,
             1,
             ui::LayoutOptions {
@@ -72,33 +75,33 @@ impl Showcase {
                 ..Default::default()
             },
         );
-        ctx.toggle("1", toggle_opt);
-        ctx.toggle("2", toggle_opt);
-        ctx.toggle("3", toggle_opt);
+        ctx.toggle("pad1", "1", toggle_opt);
+        ctx.toggle("pad2", "2", toggle_opt);
+        ctx.toggle("pad3", "3", toggle_opt);
         ctx.hbox_end();
         ctx.frame_end();
-        ctx.frame_begin("grid", 17, 4, Default::default());
-        ctx.grid_begin(3, 2, 5, 1, Default::default());
-        ctx.toggle("1", toggle_opt);
-        ctx.toggle("2", toggle_opt);
-        ctx.toggle("3", toggle_opt);
-        ctx.toggle("4", toggle_opt);
+        ctx.frame_begin("grid_frame", "grid", 17, 4, Default::default());
+        ctx.grid_begin("grid", 3, 2, 5, 1, Default::default());
+        ctx.toggle("grid1", "1", toggle_opt);
+        ctx.toggle("grid2", "2", toggle_opt);
+        ctx.toggle("grid3", "3", toggle_opt);
+        ctx.toggle("grid4", "4", toggle_opt);
         ctx.grid_end();
         ctx.frame_end();
-        ctx.frame_begin("labels", 17, 5, Default::default());
+        ctx.frame_begin("labels", "labels", 17, 5, Default::default());
         ctx.label("right", ui::TextAlign::Right);
         ctx.label("center", ui::TextAlign::Center);
         ctx.label_color("#[yellow]colored #[orange]labels", ui::TextAlign::Left);
         ctx.frame_end();
-        ctx.frame_begin("truncation", 17, 5, Default::default());
+        ctx.frame_begin("trunc", "truncation", 17, 5, Default::default());
         ctx.label("truncated right text", ui::TextAlign::Right);
         ctx.label("truncated centered text", ui::TextAlign::Center);
         ctx.label("truncated left text", ui::TextAlign::Left);
         ctx.frame_end();
-        ctx.frame_begin("sliders", 17, 6, Default::default());
-        let value = ctx.fslider(15, 0.0, 10.0, 5.0);
+        ctx.frame_begin("sliders", "sliders", 17, 6, Default::default());
+        let value = ctx.fslider("fslider", 15, 0.0, 10.0, 5.0);
         ctx.label(&format!("{:.2}", value), ui::TextAlign::Left);
-        let value = ctx.islider(15, 0, 10, 5);
+        let value = ctx.islider("islider", 15, 0, 10, 5);
         ctx.label(&format!("{}", value), ui::TextAlign::Left);
         ctx.frame_end();
         ctx.end();

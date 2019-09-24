@@ -22,6 +22,7 @@ impl RfxGen {
     fn build_ui(&mut self) {
         self.ctx.begin();
         self.ctx.hbox_begin(
+            "columns",
             20,
             0,
             ui::LayoutOptions {
@@ -30,6 +31,7 @@ impl RfxGen {
             },
         );
         self.ctx.vbox_begin(
+            "left_col",
             20,
             1,
             ui::LayoutOptions {
@@ -40,24 +42,39 @@ impl RfxGen {
         {
             self.ctx.label("rFXGen v2.1", ui::TextAlign::Left);
             self.ctx.button(
+                "coin",
                 &format!(" {}  Pickup/Coin", 184 as char),
                 ui::TextAlign::Left,
             );
             self.ctx.button(
+                "laser",
                 &format!(" {}* Laser/Shoot", 196 as char),
                 ui::TextAlign::Left,
             );
-            self.ctx
-                .button(&format!(" {}  Explosion", 15 as char), ui::TextAlign::Left);
-            self.ctx
-                .button(&format!(" {}  PowerUp", 251 as char), ui::TextAlign::Left);
-            self.ctx
-                .button(&format!(" {}  Hit/Hurt", 2 as char), ui::TextAlign::Left);
-            self.ctx.button(" ^  Jump", ui::TextAlign::Left);
-            self.ctx
-                .button(&format!(" {}  Bip/Select", 26 as char), ui::TextAlign::Left);
+            self.ctx.button(
+                "explo",
+                &format!(" {}  Explosion", 15 as char),
+                ui::TextAlign::Left,
+            );
+            self.ctx.button(
+                "powerup",
+                &format!(" {}  PowerUp", 251 as char),
+                ui::TextAlign::Left,
+            );
+            self.ctx.button(
+                "hit",
+                &format!(" {}  Hit/Hurt", 2 as char),
+                ui::TextAlign::Left,
+            );
+            self.ctx.button("jump", " ^  Jump", ui::TextAlign::Left);
+            self.ctx.button(
+                "select",
+                &format!(" {}  Bip/Select", 26 as char),
+                ui::TextAlign::Left,
+            );
             self.ctx.separator();
             self.ctx.toggle(
+                "square",
                 &format!(" {} Square", 224 as char),
                 ui::ToggleOptions {
                     group: Some(1),
@@ -66,6 +83,7 @@ impl RfxGen {
                 },
             );
             self.ctx.toggle(
+                "saw",
                 " ^ Sawtooth",
                 ui::ToggleOptions {
                     group: Some(1),
@@ -74,6 +92,7 @@ impl RfxGen {
                 },
             );
             self.ctx.toggle(
+                "sin",
                 " ~ Sinwave",
                 ui::ToggleOptions {
                     group: Some(1),
@@ -82,6 +101,7 @@ impl RfxGen {
                 },
             );
             self.ctx.toggle(
+                "noise",
                 &format!(" {} Noise", 176 as char),
                 ui::ToggleOptions {
                     group: Some(1),
@@ -90,8 +110,8 @@ impl RfxGen {
                 },
             );
             self.ctx.separator();
-            self.ctx.button("Mutate", ui::TextAlign::Center);
-            self.ctx.button("Randomize", ui::TextAlign::Center);
+            self.ctx.button("mutate", "Mutate", ui::TextAlign::Center);
+            self.ctx.button("rand", "Randomize", ui::TextAlign::Center);
         }
         self.ctx.vbox_end();
         self.ctx.hbox_end();

@@ -23,6 +23,7 @@ impl Astacia {
     fn build_ui(&mut self) {
         self.ctx.begin();
         self.ctx.vbox_begin(
+            "main_menu",
             15,
             0,
             ui::LayoutOptions {
@@ -31,19 +32,28 @@ impl Astacia {
                 ..Default::default()
             },
         );
-        if self.ctx.button("New game", ui::TextAlign::Center) {
+        if self
+            .ctx
+            .button("new_game", "New game", ui::TextAlign::Center)
+        {
             self.option_panel = false;
         }
-        if self.ctx.button("Continue", ui::TextAlign::Center) {
+        if self
+            .ctx
+            .button("continue", "Continue", ui::TextAlign::Center)
+        {
             self.option_panel = false;
         }
-        if self.ctx.button("Options ", ui::TextAlign::Center) {
+        if self
+            .ctx
+            .button("options", "Options ", ui::TextAlign::Center)
+        {
             self.option_panel = true;
         }
         if self.option_panel {
             self.options_panel();
         }
-        if self.ctx.button("Quit game", ui::TextAlign::Center) {
+        if self.ctx.button("quit", "Quit game", ui::TextAlign::Center) {
             self.option_panel = false;
         }
         self.ctx.vbox_end();
@@ -52,6 +62,7 @@ impl Astacia {
 
     fn options_panel(&mut self) {
         self.ctx.frame_begin(
+            "options",
             "Options",
             50,
             40,
@@ -63,6 +74,7 @@ impl Astacia {
         );
         self.ctx.label("Game settings", ui::TextAlign::Left);
         self.ctx.grid_begin(
+            "game_settings",
             2,
             3,
             22,
@@ -81,6 +93,7 @@ impl Astacia {
 
         self.ctx.label("Controls", ui::TextAlign::Left);
         self.ctx.grid_begin(
+            "controls",
             2,
             9,
             22,
@@ -102,11 +115,12 @@ impl Astacia {
             self.list_button("Return / Menu", &["ESC"]);
         }
         self.ctx.grid_end();
-        self.ctx.hbox_begin(0, 1, Default::default());
-        if self.ctx.button("   Ok   ", ui::TextAlign::Left) {
+        self.ctx
+            .hbox_begin("options_actions", 0, 1, Default::default());
+        if self.ctx.button("ok", "   Ok   ", ui::TextAlign::Left) {
             self.option_panel = false;
         }
-        if self.ctx.button(" Cancel ", ui::TextAlign::Left) {
+        if self.ctx.button("cancel", " Cancel ", ui::TextAlign::Left) {
             self.option_panel = false;
         }
         self.ctx.hbox_end();
@@ -116,7 +130,7 @@ impl Astacia {
     fn list_button(&mut self, label: &str, values: &[&str]) {
         self.ctx
             .label(&format!("{} :", label), ui::TextAlign::Right);
-        self.ctx.list_button_begin();
+        self.ctx.list_button_begin(label);
         for value in values {
             self.ctx.list_button_item(value, ui::TextAlign::Left);
         }
