@@ -21,25 +21,8 @@ impl RfxGen {
     }
     fn build_ui(&mut self) {
         self.ctx.begin();
-        self.ctx.hbox_begin(
-            "columns",
-            20,
-            0,
-            ui::LayoutOptions {
-                margin: 2,
-                padding: 1,
-                ..Default::default()
-            },
-        );
-        self.ctx.vbox_begin(
-            "left_col",
-            20,
-            1,
-            ui::LayoutOptions {
-                padding: 1,
-                ..Default::default()
-            },
-        );
+        self.ctx.hbox_begin("columns", 20, 0).padding(1).margin(2);
+        self.ctx.vbox_begin("left_col", 20, 1).padding(1);
         {
             self.ctx.label("rFXGen v2.1", ui::TextAlign::Left);
             self.ctx.button(
@@ -115,15 +98,7 @@ impl RfxGen {
             self.ctx.button("rand", "Randomize", ui::TextAlign::Center);
         }
         self.ctx.vbox_end();
-        self.ctx.vbox_begin(
-            "sliders",
-            40,
-            1,
-            ui::LayoutOptions {
-                padding: 1,
-                ..Default::default()
-            },
-        );
+        self.ctx.vbox_begin("sliders", 40, 1).padding(1);
         self.slider("volume", 0.0, 100.0, 60.0, true);
         self.ctx.separator();
         self.slider("attack time", 0.0, 1.0, 0.0, false);
@@ -146,30 +121,14 @@ impl RfxGen {
         self.ctx.separator();
         self.slider("repeat speed", 0.0, 1.0, 0.0, false);
         self.ctx.vbox_end();
-        self.ctx.vbox_begin(
-            "right_column",
-            16,
-            1,
-            ui::LayoutOptions {
-                padding: 1,
-                ..Default::default()
-            },
-        );
+        self.ctx.vbox_begin("right_column", 16, 1).padding(1);
         self.ctx.checkbox("play_on_change", "Play on change", true);
         self.ctx.button(
             "play",
             &format!("{} Play Sound", 16 as char),
             ui::TextAlign::Center,
         );
-        self.ctx.hbox_begin(
-            "slots",
-            4,
-            1,
-            ui::LayoutOptions {
-                padding: 1,
-                ..Default::default()
-            },
-        );
+        self.ctx.hbox_begin("slots", 4, 1).padding(1);
         self.ctx.label("Slot", ui::TextAlign::Right);
         self.ctx.toggle(
             "slot1",
@@ -250,16 +209,7 @@ impl RfxGen {
         self.ctx.list_button_end(true);
     }
     fn slider(&mut self, label: &str, min_val: f32, max_val: f32, start_val: f32, use_int: bool) {
-        self.ctx.grid_begin(
-            label,
-            3,
-            1,
-            18,
-            1,
-            ui::LayoutOptions {
-                ..Default::default()
-            },
-        );
+        self.ctx.grid_begin(label, 3, 1, 18, 1);
         self.ctx.label(label, ui::TextAlign::Right);
         if use_int {
             let value =

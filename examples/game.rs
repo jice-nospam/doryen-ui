@@ -22,16 +22,7 @@ impl Astacia {
     }
     fn build_ui(&mut self) {
         self.ctx.begin();
-        self.ctx.vbox_begin(
-            "main_menu",
-            15,
-            0,
-            ui::LayoutOptions {
-                padding: 1,
-                pos: Some((5, 30)),
-                ..Default::default()
-            },
-        );
+        self.ctx.window_begin("main_menu", 5, 30, 15, 0).padding(1);
         if self
             .ctx
             .button("new_game", "New game", ui::TextAlign::Center)
@@ -61,29 +52,12 @@ impl Astacia {
     }
 
     fn options_panel(&mut self) {
-        self.ctx.frame_begin(
-            "options",
-            "Options",
-            50,
-            40,
-            ui::LayoutOptions {
-                margin: 3,
-                padding: 1,
-                pos: Some((25, 5)),
-            },
-        );
+        self.ctx
+            .frame_window_begin("options", "Options", 25, 5, 50, 40)
+            .margin(3)
+            .padding(1);
         self.ctx.label("Game settings", ui::TextAlign::Left);
-        self.ctx.grid_begin(
-            "game_settings",
-            2,
-            3,
-            22,
-            2,
-            ui::LayoutOptions {
-                padding: 1,
-                ..Default::default()
-            },
-        );
+        self.ctx.grid_begin("game_settings", 2, 3, 22, 2).padding(1);
         {
             self.list_button("Font", &["arial_8x8.png", "consolas_12x12.png"]);
             self.list_button("FPS", &["30", "60"]);
@@ -92,17 +66,7 @@ impl Astacia {
         self.ctx.grid_end();
 
         self.ctx.label("Controls", ui::TextAlign::Left);
-        self.ctx.grid_begin(
-            "controls",
-            2,
-            9,
-            22,
-            2,
-            ui::LayoutOptions {
-                padding: 1,
-                ..Default::default()
-            },
-        );
+        self.ctx.grid_begin("controls", 2, 9, 22, 2).padding(1);
         {
             self.list_button("Move up", &["Arrow up"]);
             self.list_button("Move down", &["Arrow down"]);
@@ -115,8 +79,7 @@ impl Astacia {
             self.list_button("Return / Menu", &["ESC"]);
         }
         self.ctx.grid_end();
-        self.ctx
-            .hbox_begin("options_actions", 0, 1, Default::default());
+        self.ctx.hbox_begin("options_actions", 0, 1);
         if self.ctx.button("ok", "   Ok   ", ui::TextAlign::Left) {
             self.option_panel = false;
         }

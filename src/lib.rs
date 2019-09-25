@@ -104,13 +104,6 @@ pub const MOUSE_BUTTON_RIGHT: usize = 2;
 pub const MOUSE_BUTTON_MIDDLE: usize = 4;
 
 #[derive(Copy, Clone, Debug, Default)]
-pub struct LayoutOptions {
-    pub margin: Coord,
-    pub padding: Coord,
-    pub pos: Option<(Coord, Coord)>,
-}
-
-#[derive(Copy, Clone, Debug, Default)]
 pub struct ToggleOptions {
     pub align: TextAlign,
     pub group: Option<usize>,
@@ -129,6 +122,7 @@ pub struct Context {
     // rendering
     commands: Vec<Command>,
     layouts: Vec<Layout>,
+    next_fixed_pos: Option<Rect>,
     // state management
     focus: Id,
     hover: Id,
@@ -180,6 +174,9 @@ impl Context {
         self.last_id = NULL_ID.to_owned();
         self.id_prefix.clear();
     }
+    fn last_layout(&mut self) -> &mut Layout {
+        self.layouts.last_mut().unwrap()
+    }
     pub fn render(&mut self, renderer: &mut impl Renderer) {
         for c in self.commands.iter() {
             match c {
@@ -194,6 +191,18 @@ impl Context {
     }
     pub fn get_render_commands(&mut self) -> &Vec<Command> {
         &self.commands
+    }
+    pub fn padding(&mut self, padding: Coord) -> &mut Self {
+        self.last_layout().padding(padding);
+        self
+    }
+    pub fn margin(&mut self, margin: Coord) -> &mut Self {
+        self.last_layout().margin(margin);
+        self
+    }
+    fn pos(&mut self, x: Coord, y: Coord, width: Coord, height: Coord) -> &mut Self {
+        self.next_fixed_pos = Some(Rect::new(x, y, width, height));
+        self
     }
     // =======================================================
     //
@@ -214,6 +223,21 @@ impl Context {
     // Containers
     //
     // =======================================================
+    /// starts a new grid container.
+    /// cols,rows : number of cells in the grid
+    /// width,height : size of a cell
+    /// Example : 2,2,2,1
+    /// 1122
+    /// 3344
+    /// Margin is around the container :
+    /// MMMMMM
+    /// M1122M
+    /// M3344M
+    /// MMMMMM
+    /// Padding is between the cells :
+    /// 11P22
+    /// PPPPP
+    /// 33P44
     pub fn grid_begin(
         &mut self,
         id: &str,
@@ -221,81 +245,130 @@ impl Context {
         rows: usize,
         width: Coord,
         height: Coord,
-        opt: LayoutOptions,
-    ) {
+    ) -> &mut Self {
         self.id_prefix.push(id.to_owned());
-        let mut r = self.next_layout_area(width * cols as Coord, height * rows as Coord, opt);
+        let mut r = self.next_layout_area(width * cols as Coord, height * rows as Coord);
         r.w = width;
         r.h = height;
-        let layout = Layout::new_grid(r, cols, rows, opt.margin, opt.padding);
+        let layout = Layout::new_grid(r, cols, rows, 0, 0);
         //println!("g {:?}", layout);
         self.layouts.push(layout);
+        self
     }
     pub fn grid_end(&mut self) {
         self.layouts.pop();
         self.id_prefix.pop();
     }
-    pub fn vbox_begin(&mut self, id: &str, width: Coord, height: Coord, opt: LayoutOptions) {
+    /// The window behaves like a vbox, but it resets the cursor position
+    pub fn window_begin(
+        &mut self,
+        id: &str,
+        x: Coord,
+        y: Coord,
+        width: Coord,
+        height: Coord,
+    ) -> &mut Self {
+        self.pos(x, y, width, height).vbox_begin(id, width, height)
+    }
+    pub fn window_end(&mut self) {
+        self.vbox_end();
+    }
+    /// the frame_window behaves like a frame, but it resets the cursor position
+    pub fn frame_window_begin(
+        &mut self,
+        id: &str,
+        title: &str,
+        x: Coord,
+        y: Coord,
+        width: Coord,
+        height: Coord,
+    ) -> &mut Self {
+        self.pos(x, y, width, height)
+            .frame_begin(id, title, width, height)
+    }
+    pub fn frame_window_end(&mut self) {
+        self.frame_end();
+    }
+    /// starts a new vertical container
+    /// ///
+    /// margin is around the container :
+    /// MMMM
+    /// M11M
+    /// M22M
+    /// M33M
+    /// MMMM
+    ///
+    /// padding is between the rows :
+    /// 11
+    /// PP
+    /// 22
+    /// PP
+    /// 33
+    pub fn vbox_begin(&mut self, id: &str, width: Coord, height: Coord) -> &mut Self {
         self.id_prefix.push(id.to_owned());
-        let r = self.next_layout_area(width, height, opt);
-        let layout = Layout::new(LayoutMode::Vertical, r, opt.margin, opt.padding);
+        let r = self.next_layout_area(width, height);
+        let layout = Layout::new(LayoutMode::Vertical, r, 0, 0);
         //println!("v {:?}", layout);
         self.layouts.push(layout);
+        self
     }
     pub fn vbox_end(&mut self) {
         self.layouts.pop();
         self.id_prefix.pop();
     }
-    pub fn hbox_begin(&mut self, id: &str, width: Coord, height: Coord, opt: LayoutOptions) {
+    /// starts a new horizontal container
+    ///
+    /// margin is around the container :
+    /// MMMMMMMM
+    /// M112233M
+    /// M112233M
+    /// MMMMMMMM
+    ///
+    /// padding is between the columns :
+    /// 11P22P33
+    /// 11P22P33
+    /// 11P22P33
+    pub fn hbox_begin(&mut self, id: &str, width: Coord, height: Coord) -> &mut Self {
         self.id_prefix.push(id.to_owned());
-        let r = self.next_layout_area(width, height, opt);
-        let layout = Layout::new(LayoutMode::Horizontal, r, opt.margin, opt.padding);
+        let r = self.next_layout_area(width, height);
+        let layout = Layout::new(LayoutMode::Horizontal, r, 0, 0);
         //println!("h {:?}", layout);
         self.layouts.push(layout);
+        self
     }
     pub fn hbox_end(&mut self) {
         self.layouts.pop();
         self.id_prefix.pop();
     }
-    pub fn frame_begin(
-        &mut self,
-        id: &str,
-        title: &str,
-        width: Coord,
-        height: Coord,
-        opt: LayoutOptions,
-    ) {
-        self.vbox_begin(
-            id,
-            width.max((title.chars().count() + 2) as Coord),
-            height,
-            LayoutOptions {
-                margin: opt.margin + 1,
-                ..opt
-            },
-        );
+    /// a frame behaves like a vbox with a drawn border and a title
+    pub fn frame_begin(&mut self, id: &str, title: &str, width: Coord, height: Coord) -> &mut Self {
+        self.vbox_begin(id, width.max((title.chars().count() + 2) as Coord), height)
+            .margin(1);
         self.draw_frame(
             self.layouts.last().unwrap().area(),
             title,
             ColorCode::Background,
         );
+        self
     }
     pub fn frame_end(&mut self) {
         self.vbox_end();
     }
+    /// a popup is a frame_window with an automatic "Ok" button at the bottom
     pub fn popup_begin(
         &mut self,
         id: &str,
         title: &str,
+        x: Coord,
+        y: Coord,
         width: Coord,
         height: Coord,
-        opt: LayoutOptions,
-    ) {
-        self.frame_begin(id, title, width, height, opt);
+    ) -> &mut Self {
+        self.frame_window_begin(id, title, x, y, width, height)
     }
     pub fn popup_end(&mut self) -> bool {
         let ret = self.button("popup_ok", "Ok", TextAlign::Center);
-        self.frame_end();
+        self.frame_window_end();
         ret
     }
     // =======================================================
@@ -332,9 +405,9 @@ impl Context {
     fn last_cursor(&self) -> Pos {
         self.layouts.last().unwrap().last_cursor()
     }
-    fn next_layout_area(&mut self, w: Coord, h: Coord, opt: LayoutOptions) -> Rect {
-        if let Some((x, y)) = opt.pos {
-            Rect { x, y, w, h }
+    fn next_layout_area(&mut self, w: Coord, h: Coord) -> Rect {
+        if let Some(r) = self.next_fixed_pos.take() {
+            r
         } else {
             self.layouts.last_mut().unwrap().next_area(w, h)
         }
@@ -799,7 +872,7 @@ mod tests {
         let mut rend = AsciiRenderer::new();
         let mut ctx = ui::Context::new();
         ctx.begin();
-        ctx.vbox_begin("0", 1, 0, Default::default());
+        ctx.vbox_begin("0", 1, 0);
         ctx.label("1", ui::TextAlign::Left);
         ctx.label("2", ui::TextAlign::Left);
         ctx.vbox_end();
@@ -813,29 +886,20 @@ mod tests {
         let mut rend = AsciiRenderer::new();
         let mut ctx = ui::Context::new();
         ctx.begin();
-        ctx.hbox_begin("0", 0, 1, Default::default());
+        ctx.hbox_begin("0", 0, 1);
         ctx.label("1", ui::TextAlign::Left);
         ctx.label("2", ui::TextAlign::Left);
         ctx.hbox_end();
         ctx.end();
         ctx.render(&mut rend);
-        assert!(rend.assert("1", 0, 0));
-        assert!(rend.assert("2", 1, 0));
+        assert!(rend.assert("12", 0, 0));
     }
     #[test]
     fn test_margin() {
         let mut rend = AsciiRenderer::new();
         let mut ctx = ui::Context::new();
         ctx.begin();
-        ctx.vbox_begin(
-            "0",
-            3,
-            0,
-            ui::LayoutOptions {
-                margin: 1,
-                ..Default::default()
-            },
-        );
+        ctx.vbox_begin("0", 3, 0).margin(1);
         ctx.label("1", ui::TextAlign::Left);
         ctx.label("2", ui::TextAlign::Left);
         ctx.vbox_end();
@@ -849,15 +913,7 @@ mod tests {
         let mut rend = AsciiRenderer::new();
         let mut ctx = ui::Context::new();
         ctx.begin();
-        ctx.vbox_begin(
-            "0",
-            3,
-            0,
-            ui::LayoutOptions {
-                padding: 1,
-                ..Default::default()
-            },
-        );
+        ctx.vbox_begin("0", 3, 0).padding(1);
         ctx.label("1", ui::TextAlign::Left);
         ctx.label("2", ui::TextAlign::Left);
         ctx.vbox_end();

@@ -35,6 +35,14 @@ impl Layout {
     pub fn last_cursor(&self) -> Pos {
         self.last_cursor
     }
+    pub fn padding(&mut self, value: Coord) {
+        self.padding = value;
+    }
+    pub fn margin(&mut self, value: Coord) {
+        self.margin += value;
+        self.cursor.x += value;
+        self.cursor.y += value;
+    }
     pub fn next_area(&mut self, width: Coord, height: Coord) -> Rect {
         assert!(self.mode != LayoutMode::Single);
         match self.mode {
