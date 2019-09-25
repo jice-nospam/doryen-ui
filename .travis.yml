@@ -1,0 +1,24 @@
+language: rust
+cache: cargo
+
+rust:
+  - stable
+
+matrix:
+  include:
+    # Linux 64bit
+    - env: TARGET=x86_64-unknown-linux-gnu
+      os: linux
+
+install:
+  - rustup self update
+  - rustup target add $TARGET; true
+
+script:
+  - chmod +x ./ci/install_cargo_web.sh
+  - ./ci/install_cargo_web.sh
+  - cargo build --target $TARGET --verbose --examples
+  - cargo test
+  - cargo web build --example rfxgen --release
+  - cargo web build --example showcase --release
+  - cargo web build --example game --release
