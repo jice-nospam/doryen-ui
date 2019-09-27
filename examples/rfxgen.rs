@@ -21,122 +21,30 @@ impl RfxGen {
     }
     fn build_ui(&mut self) {
         self.ctx.begin();
-        self.ctx.hbox_begin("columns", 20, 0).padding(1).margin(2);
-        self.ctx.vbox_begin("left_col", 20, 1).padding(1);
-        {
-            self.ctx.label("rFXGen v2.1", ui::TextAlign::Left);
-            self.ctx.button(
-                "coin",
-                &format!(" {}  Pickup/Coin", 184 as char),
-                ui::TextAlign::Left,
-            );
-            self.ctx.button(
-                "laser",
-                &format!(" {}* Laser/Shoot", 196 as char),
-                ui::TextAlign::Left,
-            );
-            self.ctx.button(
-                "explo",
-                &format!(" {}  Explosion", 15 as char),
-                ui::TextAlign::Left,
-            );
-            self.ctx.button(
-                "powerup",
-                &format!(" {}  PowerUp", 251 as char),
-                ui::TextAlign::Left,
-            );
-            self.ctx.button(
-                "hit",
-                &format!(" {}  Hit/Hurt", 2 as char),
-                ui::TextAlign::Left,
-            );
-            self.ctx.button("jump", " ^  Jump", ui::TextAlign::Left);
-            self.ctx.button(
-                "select",
-                &format!(" {}  Bip/Select", 26 as char),
-                ui::TextAlign::Left,
-            );
-            self.ctx.separator();
-            self.ctx.toggle(
-                "square",
-                &format!(" {} Square", 224 as char),
-                ui::ToggleOptions {
-                    group: Some(1),
-                    align: ui::TextAlign::Left,
-                    active: true,
-                },
-            );
-            self.ctx.toggle(
-                "saw",
-                " ^ Sawtooth",
-                ui::ToggleOptions {
-                    group: Some(1),
-                    align: ui::TextAlign::Left,
-                    active: false,
-                },
-            );
-            self.ctx.toggle(
-                "sin",
-                " ~ Sinwave",
-                ui::ToggleOptions {
-                    group: Some(1),
-                    align: ui::TextAlign::Left,
-                    active: false,
-                },
-            );
-            self.ctx.toggle(
-                "noise",
-                &format!(" {} Noise", 176 as char),
-                ui::ToggleOptions {
-                    group: Some(1),
-                    align: ui::TextAlign::Left,
-                    active: false,
-                },
-            );
-            self.ctx.separator();
-            self.ctx.button("mutate", "Mutate", ui::TextAlign::Center);
-            self.ctx.button("rand", "Randomize", ui::TextAlign::Center);
-        }
-        self.ctx.vbox_end();
-        self.ctx.vbox_begin("sliders", 40, 1).padding(1);
-        self.slider("volume", 0.0, 100.0, 60.0, true);
-        self.ctx.separator();
-        self.slider("attack time", 0.0, 1.0, 0.0, false);
-        self.slider("sustain time", 0.0, 1.0, 0.0, false);
-        self.slider("sustain punch", 0.0, 1.0, 0.0, false);
-        self.slider("decay time", 0.0, 1.0, 0.0, false);
-        self.ctx.separator();
-        self.slider("start frequency", 0.0, 1.0, 0.0, false);
-        self.slider("min frequency", 0.0, 1.0, 0.0, false);
-        self.slider("slide", 0.0, 1.0, 0.0, false);
-        self.slider("delta slide", 0.0, 1.0, 0.0, false);
-        self.slider("vibrato depth", 0.0, 1.0, 0.0, false);
-        self.slider("vibrato speed", 0.0, 1.0, 0.0, false);
-        self.ctx.separator();
-        self.slider("change amount", 0.0, 1.0, 0.0, false);
-        self.slider("change speed", 0.0, 1.0, 0.0, false);
-        self.ctx.separator();
-        self.slider("square duty", 0.0, 1.0, 0.0, false);
-        self.slider("duty sweep", 0.0, 1.0, 0.0, false);
-        self.ctx.separator();
-        self.slider("repeat speed", 0.0, 1.0, 0.0, false);
-        self.ctx.vbox_end();
-        self.ctx.vbox_begin("right_column", 16, 1).padding(1);
+        self.ctx
+            .hbox_begin("columns")
+            .min_width(20)
+            .padding(1)
+            .margin(2);
+        self.left_column();
+        self.middle_column();
+        self.right_column();
+        self.ctx.hbox_end();
+        self.ctx.end();
+    }
+    fn right_column(&mut self) {
+        self.ctx.vbox_begin("right_column").padding(1).min_width(16);
         self.ctx.checkbox("play_on_change", "Play on change", true);
-        self.ctx.button(
-            "play",
-            &format!("{} Play Sound", 16 as char),
-            ui::TextAlign::Center,
-        );
-        self.ctx.hbox_begin("slots", 4, 1).padding(1);
-        self.ctx.label("Slot", ui::TextAlign::Right);
+        self.ctx
+            .button("play", &format!("{} Play Sound", 16 as char));
+        self.ctx.hbox_begin("slots").padding(1);
+        self.ctx.label("Slot").align(ui::TextAlign::Right);
         self.ctx.toggle(
             "slot1",
             "1",
             ui::ToggleOptions {
                 active: true,
                 group: Some(2),
-                ..Default::default()
             },
         );
         self.ctx.toggle(
@@ -165,41 +73,120 @@ impl RfxGen {
         );
         self.ctx.hbox_end();
         self.ctx.separator();
-        self.ctx.button(
-            "load",
-            &format!("{} Load Sound", 30 as char),
-            ui::TextAlign::Center,
-        );
-        self.ctx.button(
-            "save",
-            &format!("{} Save Sound", 31 as char),
-            ui::TextAlign::Center,
-        );
+        self.ctx
+            .button("load", &format!("{} Load Sound", 30 as char));
+        self.ctx
+            .button("save", &format!("{} Save Sound", 31 as char));
         self.ctx.separator();
         self.list_button("freq", &["44100 Hz", "22050 Hz"]);
         self.list_button("bits", &["16 bit", "32 bit", "8 bit"]);
         self.list_button("fmt", &["WAV", "MP3", "OGG"]);
-        self.ctx.button(
-            "export",
-            &format!("{} Export", 18 as char),
-            ui::TextAlign::Center,
-        );
+        self.ctx.button("export", &format!("{} Export", 18 as char));
         self.ctx.separator();
-        self.ctx.label("Visual style :", ui::TextAlign::Left);
+        self.ctx.label("Visual style :");
         self.list_button("vstyle", &["default", "jungle", "candy", "lavanda"]);
-        self.ctx.toggle(
-            "screen",
-            "Screen size x2",
-            ui::ToggleOptions {
-                align: ui::TextAlign::Center,
-                ..Default::default()
-            },
-        );
+        self.ctx
+            .toggle("screen", "Screen size x2", Default::default());
         self.ctx.separator();
-        self.ctx.button("about", "i ABOUT", ui::TextAlign::Center);
+        self.ctx.button("about", "i ABOUT");
         self.ctx.vbox_end();
-        self.ctx.hbox_end();
-        self.ctx.end();
+    }
+    fn middle_column(&mut self) {
+        self.ctx.vbox_begin("sliders").padding(1).min_width(36);
+        self.slider("volume", 0.0, 100.0, 60.0, true);
+        self.ctx.separator();
+        self.slider("attack time", 0.0, 1.0, 0.0, false);
+        self.slider("sustain time", 0.0, 1.0, 0.0, false);
+        self.slider("sustain punch", 0.0, 1.0, 0.0, false);
+        self.slider("decay time", 0.0, 1.0, 0.0, false);
+        self.ctx.separator();
+        self.slider("start frequency", 0.0, 1.0, 0.0, false);
+        self.slider("min frequency", 0.0, 1.0, 0.0, false);
+        self.slider("slide", 0.0, 1.0, 0.0, false);
+        self.slider("delta slide", 0.0, 1.0, 0.0, false);
+        self.slider("vibrato depth", 0.0, 1.0, 0.0, false);
+        self.slider("vibrato speed", 0.0, 1.0, 0.0, false);
+        self.ctx.separator();
+        self.slider("change amount", 0.0, 1.0, 0.0, false);
+        self.slider("change speed", 0.0, 1.0, 0.0, false);
+        self.ctx.separator();
+        self.slider("square duty", 0.0, 1.0, 0.0, false);
+        self.slider("duty sweep", 0.0, 1.0, 0.0, false);
+        self.ctx.separator();
+        self.slider("repeat speed", 0.0, 1.0, 0.0, false);
+        self.ctx.vbox_end();
+    }
+    fn left_column(&mut self) {
+        self.ctx.vbox_begin("left_col").padding(1).min_width(20);
+        {
+            self.ctx.label("rFXGen v2.1");
+            self.ctx
+                .button("coin", &format!(" {}  Pickup/Coin", 184 as char))
+                .align(ui::TextAlign::Left);
+            self.ctx
+                .button("laser", &format!(" {}* Laser/Shoot", 196 as char))
+                .align(ui::TextAlign::Left);
+            self.ctx
+                .button("explo", &format!(" {}  Explosion", 15 as char))
+                .align(ui::TextAlign::Left);
+            self.ctx
+                .button("powerup", &format!(" {}  PowerUp", 251 as char))
+                .align(ui::TextAlign::Left);
+            self.ctx
+                .button("hit", &format!(" {}  Hit/Hurt", 2 as char))
+                .align(ui::TextAlign::Left);
+            self.ctx
+                .button("jump", " ^  Jump")
+                .align(ui::TextAlign::Left);
+            self.ctx
+                .button("select", &format!(" {}  Bip/Select", 26 as char))
+                .align(ui::TextAlign::Left);
+            self.ctx.separator();
+            self.ctx
+                .toggle(
+                    "square",
+                    &format!(" {} Square", 224 as char),
+                    ui::ToggleOptions {
+                        group: Some(1),
+                        active: true,
+                    },
+                )
+                .align(ui::TextAlign::Left);
+            self.ctx
+                .toggle(
+                    "saw",
+                    " ^ Sawtooth",
+                    ui::ToggleOptions {
+                        group: Some(1),
+                        active: false,
+                    },
+                )
+                .align(ui::TextAlign::Left);
+            self.ctx
+                .toggle(
+                    "sin",
+                    " ~ Sinwave",
+                    ui::ToggleOptions {
+                        group: Some(1),
+                        active: false,
+                    },
+                )
+                .align(ui::TextAlign::Left);
+            self.ctx
+                .toggle(
+                    "noise",
+                    &format!(" {} Noise", 176 as char),
+                    ui::ToggleOptions {
+                        group: Some(1),
+                        active: false,
+                    },
+                )
+                .align(ui::TextAlign::Left);
+            self.ctx.separator();
+            self.ctx.button("mutate", "Mutate");
+            self.ctx.button("rand", "Randomize");
+        }
+        self.ctx.vbox_end();
     }
     fn list_button(&mut self, label: &str, values: &[&str]) {
         self.ctx.list_button_begin(label);
@@ -209,17 +196,16 @@ impl RfxGen {
         self.ctx.list_button_end(true);
     }
     fn slider(&mut self, label: &str, min_val: f32, max_val: f32, start_val: f32, use_int: bool) {
-        self.ctx.grid_begin(label, 3, 1, 18, 1);
-        self.ctx.label(label, ui::TextAlign::Right);
+        self.ctx.grid_begin(label, 3, 1, 15, 1);
+        self.ctx.label(label).align(ui::TextAlign::Right);
         if use_int {
             let value =
                 self.ctx
                     .islider("is", 10, min_val as i32, max_val as i32, start_val as i32);
-            self.ctx.label(&format!("{}", value), ui::TextAlign::Left);
+            self.ctx.label(&format!("{}", value));
         } else {
             let value = self.ctx.fslider("fs", 10, min_val, max_val, start_val);
-            self.ctx
-                .label(&format!("{:.2}", value), ui::TextAlign::Left);
+            self.ctx.label(&format!("{:.2}", value));
         }
         self.ctx.grid_end();
     }

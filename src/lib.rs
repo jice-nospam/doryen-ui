@@ -38,6 +38,15 @@ pub type Coord = i32;
 pub type Id = u64;
 const NULL_ID: Id = 0;
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum DeferedCommand {
+    Frame(String, ColorCode),
+    Button(String, ColorCode),
+    CheckBox(bool, ColorCode),
+    Label(Rect, String),
+    LabelColor(Rect, String),
+}
+
 #[derive(Clone, Copy, Default, Debug, PartialEq, Eq)]
 pub struct Pos {
     pub x: Coord,
@@ -105,7 +114,6 @@ pub const MOUSE_BUTTON_MIDDLE: usize = 4;
 
 #[derive(Copy, Clone, Debug, Default)]
 pub struct ToggleOptions {
-    pub align: TextAlign,
     pub group: Option<usize>,
     pub active: bool,
 }
@@ -122,13 +130,17 @@ pub struct Context {
     // rendering
     commands: Vec<Command>,
     layouts: Vec<Layout>,
-    next_fixed_pos: Option<Rect>,
+    // defered widget creation
+    next_layout: Option<Layout>,
+    next_align: Option<TextAlign>,
     // state management
     focus: Id,
     hover: Id,
     button_state: HashMap<Id, i32>,
     slider_state: HashMap<Id, f32>,
     toggle_group: HashMap<usize, HashSet<Id>>,
+    pressed: bool,
+    active: bool,
     // list-buttons
     list_button_index: i32,
     list_button_width: Coord,
@@ -170,12 +182,11 @@ impl Context {
         self.layouts.push(Default::default());
     }
     pub fn end(&mut self) {
+        self.try_commit();
         self.mouse_pressed = 0;
         self.last_id = NULL_ID.to_owned();
         self.id_prefix.clear();
-    }
-    fn last_layout(&mut self) -> &mut Layout {
-        self.layouts.last_mut().unwrap()
+        //println!("================");
     }
     pub fn render(&mut self, renderer: &mut impl Renderer) {
         for c in self.commands.iter() {
@@ -192,24 +203,130 @@ impl Context {
     pub fn get_render_commands(&mut self) -> &Vec<Command> {
         &self.commands
     }
+    pub fn pressed(&mut self) -> bool {
+        let r = self.pressed;
+        self.pressed = false;
+        r
+    }
+    pub fn active(&mut self) -> bool {
+        let r = self.active;
+        self.active = false;
+        r
+    }
     pub fn padding(&mut self, padding: Coord) -> &mut Self {
-        self.last_layout().padding(padding);
+        self.next_layout = Some(self.next_layout.take().unwrap().padding(padding));
+        self
+    }
+    pub fn align(&mut self, align: TextAlign) -> &mut Self {
+        self.next_align = Some(align);
         self
     }
     pub fn margin(&mut self, margin: Coord) -> &mut Self {
-        self.last_layout().margin(margin);
+        self.next_layout = Some(self.next_layout.take().unwrap().margin(margin));
         self
     }
-    fn pos(&mut self, x: Coord, y: Coord, width: Coord, height: Coord) -> &mut Self {
-        self.next_fixed_pos = Some(Rect::new(x, y, width, height));
+    pub fn min_width(&mut self, value: Coord) -> &mut Self {
+        assert!(
+            self.next_layout.is_some(),
+            "min_width should only be called after a container begin"
+        );
+        self.next_layout = Some(self.next_layout.take().unwrap().min_width(value));
         self
     }
+    pub fn max_width(&mut self, value: Coord) -> &mut Self {
+        self.next_layout = Some(self.next_layout.take().unwrap().max_width(value));
+        self
+    }
+    pub fn min_height(&mut self, value: Coord) -> &mut Self {
+        self.next_layout = Some(self.next_layout.take().unwrap().min_height(value));
+        self
+    }
+    pub fn max_height(&mut self, value: Coord) -> &mut Self {
+        self.next_layout = Some(self.next_layout.take().unwrap().max_height(value));
+        self
+    }
+    pub fn defered(&mut self, cmd: DeferedCommand) -> &mut Self {
+        self.next_layout = Some(self.next_layout.take().unwrap().defered(cmd));
+        self
+    }
+    fn grid(&mut self, cols: usize, rows: usize) -> &mut Self {
+        self.next_layout = Some(self.next_layout.take().unwrap().grid(cols, rows));
+        self
+    }
+    fn size(&mut self, width: Coord, height: Coord) -> &mut Self {
+        self.next_layout = Some(self.next_layout.take().unwrap().size(width, height));
+        self
+    }
+    fn fixed_size(&mut self, width: Coord, height: Coord) -> &mut Self {
+        self.next_layout = Some(self.next_layout.take().unwrap().fixed_size(width, height));
+        self
+    }
+    fn fixed_pos(&mut self, x: Coord, y: Coord, width: Coord, height: Coord) -> &mut Self {
+        self.next_layout = Some(
+            self.next_layout
+                .take()
+                .unwrap()
+                .pos(x, y)
+                .size(width, height),
+        );
+        self
+    }
+    fn new_layout(&mut self, mode: LayoutMode) -> &mut Self {
+        self.next_layout = Some(Layout::new(mode));
+        self
+    }
+    fn try_commit(&mut self) {
+        if let Some(mut layout) = self.next_layout.take() {
+            let commited = layout.commited();
+            if !commited {
+                self.layouts.last_mut().unwrap().commit(&mut layout);
+            }
+            let r = layout.area();
+            for c in layout.defered_iter() {
+                match c {
+                    DeferedCommand::Button(label, col) => self.render_button(r, label, *col),
+                    DeferedCommand::CheckBox(checked, col) => {
+                        self.draw_checkbox(self.last_cursor(), *checked, *col)
+                    }
+                    DeferedCommand::Label(r, label) => self.render_label(*r, label),
+                    DeferedCommand::LabelColor(r, label) => self.render_label_color(*r, label),
+                    _ => (),
+                }
+            }
+            if !layout.is_single() {
+                self.layouts.push(layout);
+            }
+        }
+    }
+    fn end_container(&mut self) {
+        self.try_commit();
+        self.layouts.pop();
+        self.id_prefix.pop();
+    }
+    fn next_rectangle(&mut self, width: Coord, height: Coord) -> Rect {
+        self.new_layout(LayoutMode::Single).size(width, height);
+        if let Some(ref mut layout) = self.next_layout {
+            self.layouts.last_mut().unwrap().commit(layout)
+        } else {
+            unreachable!();
+        }
+        //println!("w {:?}", layout);
+    }
+    fn last_cursor(&self) -> Pos {
+        self.layouts.last().unwrap().last_cursor()
+    }
+
     // =======================================================
     //
     // Id management
     //
     // =======================================================
+    fn prefix_id(&mut self, id: &str) {
+        //println!("{}", id);
+        self.id_prefix.push(id.to_owned());
+    }
     fn generate_id(&mut self, name: &str) -> Id {
+        //println!("{}", name);
         let mut hasher = DefaultHasher::new();
         (self.id_prefix.join("/") + "/" + name).hash(&mut hasher);
         self.last_id = hasher.finish();
@@ -246,18 +363,14 @@ impl Context {
         width: Coord,
         height: Coord,
     ) -> &mut Self {
-        self.id_prefix.push(id.to_owned());
-        let mut r = self.next_layout_area(width * cols as Coord, height * rows as Coord);
-        r.w = width;
-        r.h = height;
-        let layout = Layout::new_grid(r, cols, rows, 0, 0);
-        //println!("g {:?}", layout);
-        self.layouts.push(layout);
-        self
+        self.try_commit();
+        self.prefix_id(id);
+        self.new_layout(LayoutMode::Grid)
+            .fixed_size(width, height)
+            .grid(cols, rows)
     }
     pub fn grid_end(&mut self) {
-        self.layouts.pop();
-        self.id_prefix.pop();
+        self.end_container();
     }
     /// The window behaves like a vbox, but it resets the cursor position
     pub fn window_begin(
@@ -268,7 +381,7 @@ impl Context {
         width: Coord,
         height: Coord,
     ) -> &mut Self {
-        self.pos(x, y, width, height).vbox_begin(id, width, height)
+        self.vbox_begin(id).fixed_pos(x, y, width, height)
     }
     pub fn window_end(&mut self) {
         self.vbox_end();
@@ -283,14 +396,14 @@ impl Context {
         width: Coord,
         height: Coord,
     ) -> &mut Self {
-        self.pos(x, y, width, height)
-            .frame_begin(id, title, width, height)
+        self.frame_begin(id, title, width, height)
+            .fixed_pos(x, y, width, height)
     }
     pub fn frame_window_end(&mut self) {
         self.frame_end();
     }
     /// starts a new vertical container
-    /// ///
+    ///
     /// margin is around the container :
     /// MMMM
     /// M11M
@@ -304,17 +417,13 @@ impl Context {
     /// 22
     /// PP
     /// 33
-    pub fn vbox_begin(&mut self, id: &str, width: Coord, height: Coord) -> &mut Self {
-        self.id_prefix.push(id.to_owned());
-        let r = self.next_layout_area(width, height);
-        let layout = Layout::new(LayoutMode::Vertical, r, 0, 0);
-        //println!("v {:?}", layout);
-        self.layouts.push(layout);
-        self
+    pub fn vbox_begin(&mut self, id: &str) -> &mut Self {
+        self.try_commit();
+        self.prefix_id(id);
+        self.new_layout(LayoutMode::Vertical)
     }
     pub fn vbox_end(&mut self) {
-        self.layouts.pop();
-        self.id_prefix.pop();
+        self.end_container();
     }
     /// starts a new horizontal container
     ///
@@ -328,31 +437,37 @@ impl Context {
     /// 11P22P33
     /// 11P22P33
     /// 11P22P33
-    pub fn hbox_begin(&mut self, id: &str, width: Coord, height: Coord) -> &mut Self {
-        self.id_prefix.push(id.to_owned());
-        let r = self.next_layout_area(width, height);
-        let layout = Layout::new(LayoutMode::Horizontal, r, 0, 0);
-        //println!("h {:?}", layout);
-        self.layouts.push(layout);
-        self
+    pub fn hbox_begin(&mut self, id: &str) -> &mut Self {
+        self.try_commit();
+        self.prefix_id(id);
+        self.new_layout(LayoutMode::Horizontal).min_height(1)
     }
     pub fn hbox_end(&mut self) {
-        self.layouts.pop();
-        self.id_prefix.pop();
+        self.end_container();
     }
     /// a frame behaves like a vbox with a drawn border and a title
     pub fn frame_begin(&mut self, id: &str, title: &str, width: Coord, height: Coord) -> &mut Self {
-        self.vbox_begin(id, width.max((title.chars().count() + 2) as Coord), height)
-            .margin(1);
-        self.draw_frame(
-            self.layouts.last().unwrap().area(),
-            title,
-            ColorCode::Background,
-        );
-        self
+        self.vbox_begin(id)
+            .fixed_size(width, height)
+            .margin(1)
+            .defered(DeferedCommand::Frame(
+                title.to_owned(),
+                ColorCode::Background,
+            ))
     }
     pub fn frame_end(&mut self) {
-        self.vbox_end();
+        self.try_commit();
+        let mut layout = self.layouts.pop().unwrap();
+        let r = layout.area();
+        match layout.defered_iter().next() {
+            Some(DeferedCommand::Frame(title, col)) => self.render_frame(&title, *col, r),
+            Some(c) => panic!(
+                "unmatched begin/end calls. Expected Frame instead of {:?}",
+                c
+            ),
+            None => panic!("unmatched begin/end calls"),
+        }
+        self.id_prefix.pop();
     }
     /// a popup is a frame_window with an automatic "Ok" button at the bottom
     pub fn popup_begin(
@@ -367,7 +482,7 @@ impl Context {
         self.frame_window_begin(id, title, x, y, width, height)
     }
     pub fn popup_end(&mut self) -> bool {
-        let ret = self.button("popup_ok", "Ok", TextAlign::Center);
+        let ret = self.button("popup_ok", "Ok").pressed();
         self.frame_window_end();
         ret
     }
@@ -377,51 +492,40 @@ impl Context {
     //
     // =======================================================
     pub fn separator(&mut self) {
+        self.try_commit();
         let r = self.next_rectangle(0, 0);
         self.draw_rect(r, ColorCode::Background);
         self.draw_line(r.x, r.y, r.x + r.w, r.y + r.h, ColorCode::Foreground);
     }
 
-    pub fn label(&mut self, label: &str, align: TextAlign) {
+    pub fn label(&mut self, label: &str) -> &mut Self {
+        self.try_commit();
         let r = self.next_rectangle(label.chars().count() as Coord, 1);
-        self.draw_rect(r, ColorCode::Background);
-        self.draw_text(r, label, align, ColorCode::Text);
+        self.defered(DeferedCommand::Label(r, label.to_owned()));
+        self
     }
-    pub fn label_color(&mut self, label: &str, align: TextAlign) {
+    pub fn label_color(&mut self, label: &str) -> &mut Self {
+        self.try_commit();
         let len = text_color_len(label) as Coord;
         let r = self.next_rectangle(len, 1);
-        self.draw_rect(r, ColorCode::Background);
-        self.draw_text_color(r, label, align);
+        self.defered(DeferedCommand::LabelColor(r, label.to_owned()));
+        self
     }
     // =======================================================
     //
     // Buttons
     //
     // =======================================================
-    fn next_rectangle(&mut self, width: Coord, height: Coord) -> Rect {
-        self.layouts.last_mut().unwrap().next_area(width, height)
-        //println!("w {:?}", layout);
-    }
-    fn last_cursor(&self) -> Pos {
-        self.layouts.last().unwrap().last_cursor()
-    }
-    fn next_layout_area(&mut self, w: Coord, h: Coord) -> Rect {
-        if let Some(r) = self.next_fixed_pos.take() {
-            r
-        } else {
-            self.layouts.last_mut().unwrap().next_area(w, h)
-        }
-    }
-    pub fn button(&mut self, id: &str, label: &str, align: TextAlign) -> bool {
+    pub fn button(&mut self, id: &str, label: &str) -> &mut Self {
+        self.try_commit();
         let id = self.generate_id(id);
         let r = self.next_rectangle(label.chars().count() as Coord, 1);
         self.update_control(id, &r, false);
         let focus = self.focus == id;
         let hover = self.hover == id;
-        let pressed = hover && self.mouse_pressed == MOUSE_BUTTON_LEFT;
-        //println!("{}: {} {} {}",id, focus,hover,pressed);
-        self.draw_rect(
-            r,
+        self.pressed = hover && self.mouse_pressed == MOUSE_BUTTON_LEFT;
+        self.defered(DeferedCommand::Button(
+            label.to_owned(),
             if hover {
                 ColorCode::ButtonBackgroundHover
             } else if focus {
@@ -429,15 +533,18 @@ impl Context {
             } else {
                 ColorCode::ButtonBackground
             },
-        );
-        self.draw_text(r, label, align, ColorCode::Text);
-        pressed
+        ));
+        //println!("{}: {} {} {}",id, focus,hover,pressed);
+        self
     }
     /// same as toggle button, but displays a checkbox left to the label
     /// returns (checkbox_status, status_has_changed_this_frame)
-    pub fn checkbox(&mut self, id: &str, label: &str, initial_state: bool) -> (bool, bool) {
+    pub fn checkbox(&mut self, id: &str, label: &str, initial_state: bool) -> &mut Self {
         let padded_label = "  ".to_owned() + label;
-        let pressed = self.button(id, &padded_label, TextAlign::Left);
+        let pressed = self
+            .button(id, &padded_label)
+            .align(TextAlign::Left)
+            .pressed();
         let checked = {
             let checked = self
                 .button_state
@@ -448,8 +555,9 @@ impl Context {
             }
             *checked
         };
-        self.draw_checkbox(self.last_cursor(), checked == 1, ColorCode::Text);
-        (checked == 1, pressed)
+        self.defered(DeferedCommand::CheckBox(checked == 1, ColorCode::Text));
+        self.active = checked == 1;
+        self
     }
 
     // =======================================================
@@ -469,7 +577,8 @@ impl Context {
     }
     /// a button that switches between active/inactive when clicked.
     /// returns (button_status, status_has_changed_this_frame)
-    pub fn toggle(&mut self, id: &str, label: &str, opt: ToggleOptions) -> (bool, bool) {
+    pub fn toggle(&mut self, id: &str, label: &str, opt: ToggleOptions) -> &mut Self {
+        self.try_commit();
         let id = self.generate_id(id);
         if let Some(group) = opt.group {
             self.add_group_id(group, id);
@@ -484,19 +593,17 @@ impl Context {
             .get(&self.last_id)
             .unwrap_or(if opt.active { &1 } else { &0 })
             == 1;
-        let mut changed = false;
         if pressed {
             if !on {
                 if let Some(group) = opt.group {
                     self.disable_toggle_group(group);
                 }
             }
-            changed = true;
             on = !on;
         }
         self.button_state.insert(id, if on { 1 } else { 0 });
-        self.draw_rect(
-            r,
+        self.defered(DeferedCommand::Button(
+            label.to_owned(),
             if on && !hover {
                 ColorCode::ButtonBackgroundHover
             } else if focus || hover {
@@ -504,9 +611,10 @@ impl Context {
             } else {
                 ColorCode::ButtonBackground
             },
-        );
-        self.draw_text(r, label, opt.align, ColorCode::Text);
-        (on, changed)
+        ));
+        self.pressed = pressed;
+        self.active = on;
+        self
     }
     pub fn set_toggle_status(&mut self, toggle_id: Id, status: bool) {
         self.button_state
@@ -521,6 +629,7 @@ impl Context {
 
     /// a button that cycles over a list of values when clicked
     pub fn list_button_begin(&mut self, id: &str) {
+        self.try_commit();
         let id = self.generate_id(id);
         self.list_button_index = 0;
         self.list_button_width = 0;
@@ -610,6 +719,7 @@ impl Context {
     ) -> f32 {
         assert!(min_val < max_val);
         assert!(start_val >= min_val && start_val <= max_val);
+        self.try_commit();
         let id = self.generate_id(id1);
         let value = *self.slider_state.entry(id).or_insert(start_val);
         let r = self.next_rectangle(width, 1);
@@ -646,6 +756,7 @@ impl Context {
     ) -> i32 {
         assert!(min_val < max_val);
         assert!(start_val >= min_val && start_val <= max_val);
+        self.try_commit();
         let id = self.generate_id(id);
         let value = *self.button_state.entry(id).or_insert(start_val);
         let r = self.next_rectangle(width, 1);
@@ -689,6 +800,36 @@ impl Context {
             h: 1,
         };
         self.draw_text(handle_area, "|", TextAlign::Left, ColorCode::Text);
+    }
+
+    // =======================================================
+    //
+    // Defered rendering functions
+    //
+    // =======================================================
+    fn render_label(&mut self, r: Rect, label: &str) {
+        let align = self.next_align.take().unwrap_or(TextAlign::Left);
+        self.draw_rect(r, ColorCode::Background);
+        self.draw_text(r, label, align, ColorCode::Text);
+    }
+    fn render_label_color(&mut self, r: Rect, label: &str) {
+        let align = self.next_align.take().unwrap_or(TextAlign::Left);
+        self.draw_rect(r, ColorCode::Background);
+        self.draw_text_color(r, label, align);
+    }
+
+    fn render_button(&mut self, r: Rect, label: &str, col: ColorCode) {
+        let align = self.next_align.take().unwrap_or(TextAlign::Center);
+        self.draw_rect(r, col);
+        self.draw_text(r, label, align, ColorCode::Text);
+    }
+    fn render_frame(&mut self, title: &str, col: ColorCode, r: Rect) {
+        let title = if title.chars().count() as i32 > r.w - 2 {
+            title.chars().take(r.w as usize - 2).collect::<String>()
+        } else {
+            title.to_owned()
+        };
+        self.draw_frame(r, &title, col);
     }
 
     // =======================================================
@@ -862,7 +1003,7 @@ mod tests {
         let mut rend = AsciiRenderer::new();
         let mut ctx = ui::Context::new();
         ctx.begin();
-        ctx.button("0", "test", ui::TextAlign::Left);
+        ctx.button("0", "test").align(ui::TextAlign::Left);
         ctx.end();
         ctx.render(&mut rend);
         assert!(rend.assert("test", 0, 0));
@@ -872,9 +1013,9 @@ mod tests {
         let mut rend = AsciiRenderer::new();
         let mut ctx = ui::Context::new();
         ctx.begin();
-        ctx.vbox_begin("0", 1, 0);
-        ctx.label("1", ui::TextAlign::Left);
-        ctx.label("2", ui::TextAlign::Left);
+        ctx.vbox_begin("0");
+        ctx.label("1");
+        ctx.label("2");
         ctx.vbox_end();
         ctx.end();
         ctx.render(&mut rend);
@@ -886,9 +1027,9 @@ mod tests {
         let mut rend = AsciiRenderer::new();
         let mut ctx = ui::Context::new();
         ctx.begin();
-        ctx.hbox_begin("0", 0, 1);
-        ctx.label("1", ui::TextAlign::Left);
-        ctx.label("2", ui::TextAlign::Left);
+        ctx.hbox_begin("0");
+        ctx.label("1");
+        ctx.label("2");
         ctx.hbox_end();
         ctx.end();
         ctx.render(&mut rend);
@@ -899,9 +1040,9 @@ mod tests {
         let mut rend = AsciiRenderer::new();
         let mut ctx = ui::Context::new();
         ctx.begin();
-        ctx.vbox_begin("0", 3, 0).margin(1);
-        ctx.label("1", ui::TextAlign::Left);
-        ctx.label("2", ui::TextAlign::Left);
+        ctx.vbox_begin("0").margin(1);
+        ctx.label("1");
+        ctx.label("2");
         ctx.vbox_end();
         ctx.end();
         ctx.render(&mut rend);
@@ -913,9 +1054,9 @@ mod tests {
         let mut rend = AsciiRenderer::new();
         let mut ctx = ui::Context::new();
         ctx.begin();
-        ctx.vbox_begin("0", 3, 0).padding(1);
-        ctx.label("1", ui::TextAlign::Left);
-        ctx.label("2", ui::TextAlign::Left);
+        ctx.vbox_begin("0").padding(1);
+        ctx.label("1");
+        ctx.label("2");
         ctx.vbox_end();
         ctx.end();
         ctx.render(&mut rend);

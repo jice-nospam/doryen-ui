@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::hash::BuildHasher;
 
-use crate::{ColorCode, Command, Context, Pos, Rect};
+use crate::{ColorCode, Command, Context, Pos, Rect, MOUSE_BUTTON_LEFT};
 use doryen_rs::{Color, Console, DoryenApi, TextAlign, CHAR_LINE_H};
 
 pub fn text_color_len(txt: &str) -> usize {
@@ -13,9 +13,9 @@ pub fn update_doryen_input_data(api: &mut dyn DoryenApi, ctx: &mut Context) {
     let (mx, my) = input.mouse_pos();
     ctx.input_mouse_pos(mx, my);
     if input.mouse_button_pressed(0) {
-        ctx.input_mouse_down(1);
+        ctx.input_mouse_down(MOUSE_BUTTON_LEFT);
     } else if input.mouse_button_released(0) {
-        ctx.input_mouse_up(1);
+        ctx.input_mouse_up(MOUSE_BUTTON_LEFT);
     }
 }
 

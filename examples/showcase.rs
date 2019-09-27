@@ -24,7 +24,11 @@ impl Showcase {
         let ctx = &mut self.ctx;
         ctx.begin();
         ctx.frame_begin("buttons", "buttons", 17, 6);
-        if ctx.button("button", "  button", ui::TextAlign::Left) {
+        if ctx
+            .button("button", "  button")
+            .align(ui::TextAlign::Left)
+            .pressed()
+        {
             self.button_popup = true;
         }
         if self.button_popup {
@@ -33,11 +37,8 @@ impl Showcase {
                 self.button_popup = false;
             }
         }
-        let toggle_opt = ui::ToggleOptions {
-            align: ui::TextAlign::Left,
-            ..Default::default()
-        };
-        ctx.toggle("toggle", "  toggle", toggle_opt);
+        ctx.toggle("toggle", "  toggle", Default::default())
+            .align(ui::TextAlign::Left);
         ctx.checkbox("checkbox", "checkbox", false);
         ctx.list_button_begin("list_button");
         ctx.list_button_item("list value 1", ui::TextAlign::Center);
@@ -45,38 +46,48 @@ impl Showcase {
         ctx.list_button_end(true);
         ctx.frame_end();
         ctx.frame_begin("margin", "margin", 17, 7).margin(2);
-        ctx.toggle("margin", "margin", toggle_opt);
+        ctx.toggle("margin", "margin", Default::default())
+            .align(ui::TextAlign::Left);
         ctx.frame_end();
         ctx.frame_begin("padding", "padding", 17, 3);
-        ctx.hbox_begin("pad_hbox", 0, 1).padding(6);
-        ctx.toggle("pad1", "1", toggle_opt);
-        ctx.toggle("pad2", "2", toggle_opt);
-        ctx.toggle("pad3", "3", toggle_opt);
+        ctx.hbox_begin("pad_hbox").padding(6);
+        ctx.toggle("pad1", "1", Default::default())
+            .align(ui::TextAlign::Left);
+        ctx.toggle("pad2", "2", Default::default())
+            .align(ui::TextAlign::Left);
+        ctx.toggle("pad3", "3", Default::default())
+            .align(ui::TextAlign::Left);
         ctx.hbox_end();
         ctx.frame_end();
         ctx.frame_begin("grid_frame", "grid", 17, 4);
         ctx.grid_begin("grid", 3, 2, 5, 1);
-        ctx.toggle("grid1", "1", toggle_opt);
-        ctx.toggle("grid2", "2", toggle_opt);
-        ctx.toggle("grid3", "3", toggle_opt);
-        ctx.toggle("grid4", "4", toggle_opt);
+        ctx.toggle("grid1", "1", Default::default())
+            .align(ui::TextAlign::Left);
+        ctx.toggle("grid2", "2", Default::default())
+            .align(ui::TextAlign::Left);
+        ctx.toggle("grid3", "3", Default::default())
+            .align(ui::TextAlign::Left);
+        ctx.toggle("grid4", "4", Default::default())
+            .align(ui::TextAlign::Left);
         ctx.grid_end();
         ctx.frame_end();
         ctx.frame_begin("labels", "labels", 17, 5);
-        ctx.label("right", ui::TextAlign::Right);
-        ctx.label("center", ui::TextAlign::Center);
-        ctx.label_color("#[yellow]colored #[orange]labels", ui::TextAlign::Left);
+        ctx.label("right").align(ui::TextAlign::Right);
+        ctx.label("center").align(ui::TextAlign::Center);
+        ctx.label_color("#[yellow]colored #[orange]labels");
         ctx.frame_end();
         ctx.frame_begin("trunc", "truncation", 17, 5);
-        ctx.label("truncated right text", ui::TextAlign::Right);
-        ctx.label("truncated centered text", ui::TextAlign::Center);
-        ctx.label("truncated left text", ui::TextAlign::Left);
+        ctx.label("truncated right text")
+            .align(ui::TextAlign::Right);
+        ctx.label("truncated centered text")
+            .align(ui::TextAlign::Center);
+        ctx.label("truncated left text");
         ctx.frame_end();
         ctx.frame_begin("sliders", "sliders", 17, 6);
         let value = ctx.fslider("fslider", 15, 0.0, 10.0, 5.0);
-        ctx.label(&format!("{:.2}", value), ui::TextAlign::Left);
+        ctx.label(&format!("{:.2}", value));
         let value = ctx.islider("islider", 15, 0, 10, 5);
-        ctx.label(&format!("{}", value), ui::TextAlign::Left);
+        ctx.label(&format!("{}", value));
         ctx.frame_end();
         ctx.end();
     }
