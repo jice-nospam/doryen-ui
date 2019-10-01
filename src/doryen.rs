@@ -1,7 +1,4 @@
-use std::collections::HashMap;
-use std::hash::BuildHasher;
-
-use crate::{ColorCode, Command, Context, Pos, Rect, MOUSE_BUTTON_LEFT};
+use crate::{Command, Context, Pos, Rect, MOUSE_BUTTON_LEFT};
 use doryen_rs::{Color, Console, DoryenApi, TextAlign, CHAR_LINE_H};
 
 pub fn text_color_len(txt: &str) -> usize {
@@ -29,37 +26,21 @@ impl From<crate::TextAlign> for TextAlign {
     }
 }
 
-pub fn render_doryen<S: BuildHasher>(
-    con: &mut Console,
-    ctx: &mut Context,
-    colormap: &HashMap<ColorCode, Color, S>,
-) {
+pub fn render_doryen(con: &mut Console, ctx: &mut Context) {
     for c in ctx.get_render_commands().iter() {
         match c {
-            Command::Rect(r, col) => render_rect(con, &r, conv_color(*col, colormap)),
-            Command::Line(p1, p2, col) => render_line(con, *p1, *p2, conv_color(*col, colormap)),
-            Command::Text(txt, pos, col) => {
-                render_text(con, *pos, &txt, conv_color(*col, colormap))
-            }
+            Command::Rect(r, col) => render_rect(con, &r, *col),
+            Command::Line(p1, p2, col) => render_line(con, *p1, *p2, *col),
+            Command::Text(txt, pos, col) => render_text(con, *pos, &txt, *col),
             Command::TextColor(txt, pos, align) => {
                 render_text_color(con, *pos, &txt, (*align).into())
             }
-            Command::Frame(txt, r, col) => render_frame(
-                con,
-                &txt,
-                &r,
-                conv_color(*col, colormap),
-                conv_color(ColorCode::Text, colormap),
-            ),
+            Command::Frame(txt, r, col, coltext) => render_frame(con, &txt, &r, *col, *coltext),
             Command::CheckBox(pos, checked, col) => {
-                render_checkbox(con, *pos, *checked, conv_color(*col, colormap));
+                render_checkbox(con, *pos, *checked, *col);
             }
         }
     }
-}
-
-fn conv_color<S: BuildHasher>(col: ColorCode, colormap: &HashMap<ColorCode, Color, S>) -> Color {
-    *colormap.get(&col).unwrap()
 }
 
 fn render_rect(con: &mut Console, r: &Rect, col: Color) {

@@ -5,22 +5,16 @@ use std::hash::{Hash, Hasher};
 #[cfg(feature = "doryen")]
 mod doryen;
 
+mod color;
 mod layout;
 
 #[cfg(feature = "doryen")]
 pub use doryen::*;
 
-use layout::*;
+pub use color::{Color, ColorCode};
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
-pub enum ColorCode {
-    Background,
-    Foreground,
-    ButtonBackground,
-    ButtonBackgroundHover,
-    ButtonBackgroundFocus,
-    Text,
-}
+use color::*;
+use layout::*;
 
 #[derive(Copy, Clone, Debug)]
 pub enum TextAlign {
@@ -40,7 +34,7 @@ const NULL_ID: Id = 0;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum DeferedCommand {
-    Frame(String, ColorCode),
+    Frame(String, ColorCode, ColorCode),
     Button(String, ColorCode),
     CheckBox(bool, ColorCode),
     Label(Rect, String),
@@ -91,21 +85,21 @@ impl Rect {
 
 #[derive(Debug)]
 pub enum Command {
-    Rect(Rect, ColorCode),
-    Text(String, Pos, ColorCode),
+    Rect(Rect, Color),
+    Text(String, Pos, Color),
     TextColor(String, Pos, TextAlign),
-    Frame(String, Rect, ColorCode),
-    Line(Pos, Pos, ColorCode),
-    CheckBox(Pos, bool, ColorCode),
+    Frame(String, Rect, Color, Color),
+    Line(Pos, Pos, Color),
+    CheckBox(Pos, bool, Color),
 }
 
 pub trait Renderer {
-    fn line(&mut self, p1: Pos, p2: Pos, col: ColorCode);
-    fn rectangle(&mut self, rect: &Rect, col: ColorCode);
-    fn text(&mut self, pos: Pos, txt: &str, col: ColorCode);
+    fn line(&mut self, p1: Pos, p2: Pos, col: Color);
+    fn rectangle(&mut self, rect: &Rect, col: Color);
+    fn text(&mut self, pos: Pos, txt: &str, col: Color);
     fn text_color(&mut self, pos: Pos, txt: &str, align: TextAlign);
-    fn frame(&mut self, txt: &str, rect: &Rect, col: ColorCode);
-    fn checkbox(&mut self, pos: Pos, checked: bool, col: ColorCode);
+    fn frame(&mut self, txt: &str, rect: &Rect, col: Color, coltxt: Color);
+    fn checkbox(&mut self, pos: Pos, checked: bool, col: Color);
 }
 
 pub const MOUSE_BUTTON_LEFT: usize = 1;
@@ -120,6 +114,7 @@ pub struct ToggleOptions {
 
 #[derive(Default)]
 pub struct Context {
+    color_manager: ColorManager,
     // id generation
     last_id: Id,
     id_prefix: Vec<String>,
@@ -155,6 +150,20 @@ pub struct Context {
 impl Context {
     pub fn new() -> Self {
         Default::default()
+    }
+    // =======================================================
+    //
+    // Color
+    //
+    // =======================================================
+    pub fn push_color(&mut self, code: ColorCode, c: Color) {
+        self.color_manager.push(code, c);
+    }
+    pub fn pop_color(&mut self, code: ColorCode) {
+        self.color_manager.pop(code);
+    }
+    pub fn get_color(&self, code: ColorCode) -> Color {
+        self.color_manager.get(code)
     }
     // =======================================================
     //
@@ -194,7 +203,7 @@ impl Context {
                 Command::Rect(r, col) => renderer.rectangle(r, *col),
                 Command::Text(txt, pos, col) => renderer.text(*pos, txt, *col),
                 Command::TextColor(txt, pos, align) => renderer.text_color(*pos, txt, *align),
-                Command::Frame(txt, r, col) => renderer.frame(txt, r, *col),
+                Command::Frame(txt, r, col, coltxt) => renderer.frame(txt, r, *col, *coltxt),
                 Command::Line(p1, p2, col) => renderer.line(*p1, *p2, *col),
                 Command::CheckBox(pos, checked, col) => renderer.checkbox(*pos, *checked, *col),
             }
@@ -453,6 +462,7 @@ impl Context {
             .defered(DeferedCommand::Frame(
                 title.to_owned(),
                 ColorCode::Background,
+                ColorCode::Text,
             ))
     }
     pub fn frame_end(&mut self) {
@@ -460,7 +470,9 @@ impl Context {
         let mut layout = self.layouts.pop().unwrap();
         let r = layout.area();
         match layout.defered_iter().next() {
-            Some(DeferedCommand::Frame(title, col)) => self.render_frame(&title, *col, r),
+            Some(DeferedCommand::Frame(title, col, coltxt)) => {
+                self.render_frame(&title, *col, *coltxt, r)
+            }
             Some(c) => panic!(
                 "unmatched begin/end calls. Expected Frame instead of {:?}",
                 c
@@ -823,13 +835,13 @@ impl Context {
         self.draw_rect(r, col);
         self.draw_text(r, label, align, ColorCode::Text);
     }
-    fn render_frame(&mut self, title: &str, col: ColorCode, r: Rect) {
+    fn render_frame(&mut self, title: &str, col: ColorCode, coltxt: ColorCode, r: Rect) {
         let title = if title.chars().count() as i32 > r.w - 2 {
             title.chars().take(r.w as usize - 2).collect::<String>()
         } else {
             title.to_owned()
         };
-        self.draw_frame(r, &title, col);
+        self.draw_frame(r, &title, col, coltxt);
     }
 
     // =======================================================
@@ -838,13 +850,18 @@ impl Context {
     //
     // =======================================================
     fn draw_checkbox(&mut self, p: Pos, checked: bool, col: ColorCode) {
+        let col = self.get_color(col);
         self.commands.push(Command::CheckBox(p, checked, col));
     }
-    fn draw_frame(&mut self, r: Rect, title: &str, col: ColorCode) {
-        self.commands.push(Command::Frame(title.to_owned(), r, col));
+    fn draw_frame(&mut self, r: Rect, title: &str, col: ColorCode, coltxt: ColorCode) {
+        let col = self.get_color(col);
+        let coltxt = self.get_color(coltxt);
+        self.commands
+            .push(Command::Frame(title.to_owned(), r, col, coltxt));
     }
 
     fn draw_line(&mut self, x1: Coord, y1: Coord, x2: Coord, y2: Coord, col: ColorCode) {
+        let col = self.get_color(col);
         self.commands.push(Command::Line(
             Pos { x: x1, y: y1 },
             Pos { x: x2, y: y2 },
@@ -853,11 +870,13 @@ impl Context {
     }
 
     fn draw_rect(&mut self, r: Rect, col: ColorCode) {
+        let col = self.get_color(col);
         self.commands.push(Command::Rect(r, col));
     }
 
     fn draw_text(&mut self, r: Rect, txt: &str, align: TextAlign, col: ColorCode) {
         let (pos, truncated_text) = format_text(r, txt, align);
+        let col = self.get_color(col);
         self.commands.push(Command::Text(truncated_text, pos, col));
     }
 
@@ -958,15 +977,15 @@ mod tests {
         }
     }
     impl ui::Renderer for AsciiRenderer {
-        fn line(&mut self, _p1: ui::Pos, _p2: ui::Pos, _col: ui::ColorCode) {}
-        fn rectangle(&mut self, rect: &ui::Rect, _col: ui::ColorCode) {
+        fn line(&mut self, _p1: ui::Pos, _p2: ui::Pos, _col: ui::Color) {}
+        fn rectangle(&mut self, rect: &ui::Rect, _col: ui::Color) {
             for cx in rect.x as usize..(rect.x + rect.w) as usize {
                 for cy in rect.y as usize..(rect.y + rect.h) as usize {
                     self.character[cx][cy] = ' ';
                 }
             }
         }
-        fn text(&mut self, pos: ui::Pos, txt: &str, _col: ui::ColorCode) {
+        fn text(&mut self, pos: ui::Pos, txt: &str, _col: ui::Color) {
             let mut x = pos.x as usize;
             let y = pos.y as usize;
             for c in txt.chars() {
@@ -982,7 +1001,7 @@ mod tests {
                 x += 1;
             }
         }
-        fn frame(&mut self, txt: &str, rect: &ui::Rect, col: ui::ColorCode) {
+        fn frame(&mut self, txt: &str, rect: &ui::Rect, _col: ui::Color, coltxt: ui::Color) {
             let rx = rect.x as usize;
             let ry = rect.y as usize;
             let rx2 = rx + rect.w as usize - 1;
@@ -991,9 +1010,9 @@ mod tests {
             self.character[rx2][ry] = '2';
             self.character[rx][ry2] = '3';
             self.character[rx2][ry2] = '4';
-            self.text(rect.into(), txt, col);
+            self.text(rect.into(), txt, coltxt);
         }
-        fn checkbox(&mut self, pos: ui::Pos, _checked: bool, _col: ui::ColorCode) {
+        fn checkbox(&mut self, pos: ui::Pos, _checked: bool, _col: ui::Color) {
             self.character[pos.x as usize][pos.y as usize] = '5';
         }
     }

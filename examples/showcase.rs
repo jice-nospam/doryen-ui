@@ -1,9 +1,7 @@
 extern crate doryen_rs;
 extern crate doryen_ui;
 
-use std::collections::HashMap;
-
-use doryen_rs::{App, AppOptions, Color, DoryenApi, Engine};
+use doryen_rs::{App, AppOptions, DoryenApi, Engine};
 use doryen_ui as ui;
 
 const CONSOLE_WIDTH: u32 = 80;
@@ -13,7 +11,6 @@ const CONSOLE_HEIGHT: u32 = 50;
 struct Showcase {
     ctx: ui::Context,
     button_popup: bool,
-    colormap: HashMap<ui::ColorCode, Color>,
 }
 
 impl Showcase {
@@ -95,18 +92,18 @@ impl Showcase {
 
 impl Engine for Showcase {
     fn init(&mut self, api: &mut dyn DoryenApi) {
-        self.colormap
-            .insert(ui::ColorCode::Background, (245, 245, 245, 255));
-        self.colormap
-            .insert(ui::ColorCode::Foreground, (200, 200, 255, 255));
-        self.colormap
-            .insert(ui::ColorCode::ButtonBackground, (201, 201, 201, 255));
-        self.colormap
-            .insert(ui::ColorCode::ButtonBackgroundHover, (201, 239, 254, 255));
-        self.colormap
-            .insert(ui::ColorCode::ButtonBackgroundFocus, (151, 232, 235, 255));
-        self.colormap
-            .insert(ui::ColorCode::Text, (104, 104, 104, 255));
+        self.ctx
+            .push_color(ui::ColorCode::Background, (245, 245, 245, 255));
+        self.ctx
+            .push_color(ui::ColorCode::Foreground, (200, 200, 255, 255));
+        self.ctx
+            .push_color(ui::ColorCode::ButtonBackground, (201, 201, 201, 255));
+        self.ctx
+            .push_color(ui::ColorCode::ButtonBackgroundHover, (201, 239, 254, 255));
+        self.ctx
+            .push_color(ui::ColorCode::ButtonBackgroundFocus, (151, 232, 235, 255));
+        self.ctx
+            .push_color(ui::ColorCode::Text, (104, 104, 104, 255));
         api.con().register_color("yellow", (200, 200, 100, 255));
         api.con().register_color("orange", (150, 150, 50, 255));
     }
@@ -117,7 +114,7 @@ impl Engine for Showcase {
     fn render(&mut self, api: &mut dyn DoryenApi) {
         api.con()
             .clear(None, Some((0, 0, 0, 255)), Some(' ' as u16));
-        ui::render_doryen(api.con(), &mut self.ctx, &self.colormap);
+        ui::render_doryen(api.con(), &mut self.ctx);
     }
     fn resize(&mut self, _api: &mut dyn DoryenApi) {}
 }
