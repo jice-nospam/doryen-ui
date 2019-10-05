@@ -5,8 +5,11 @@ use std::hash::{Hash, Hasher};
 #[cfg(feature = "doryen")]
 mod doryen;
 
+mod button;
 mod color;
+mod container;
 mod layout;
+mod slider;
 
 #[cfg(feature = "doryen")]
 pub use doryen::*;
@@ -150,7 +153,7 @@ impl Context {
     }
     // =======================================================
     //
-    // Color
+    // Color stack
     //
     // =======================================================
     pub fn push_color(&mut self, code: ColorCode, c: Color) {
@@ -333,21 +336,7 @@ impl Context {
             }
             let r = layout.area();
             for c in layout.defered_iter() {
-                match c {
-                    DeferedCommand::Button(label, col, coltxt) => {
-                        self.render_button(r, label, *col, *coltxt)
-                    }
-                    DeferedCommand::CheckBox(checked, col) => {
-                        self.draw_checkbox(self.last_cursor(), *checked, *col)
-                    }
-                    DeferedCommand::Label(r, label, col, coltxt) => {
-                        self.render_label(*r, label, *col, *coltxt)
-                    }
-                    DeferedCommand::LabelColor(r, label, col) => {
-                        self.render_label_color(*r, label, *col)
-                    }
-                    _ => (),
-                }
+                self.render_defered(r, c);
             }
             if !layout.is_single() {
                 self.layouts.push(layout);
@@ -391,168 +380,7 @@ impl Context {
     pub fn last_id(&self) -> Id {
         self.last_id
     }
-    // =======================================================
-    //
-    // Containers
-    //
-    // =======================================================
-    /// starts a new grid container.
-    /// cols,rows : number of cells in the grid
-    /// cell_width,cell_height : size of a cell
-    /// Example : 2,2,2,1
-    /// 1122
-    /// 3344
-    /// Margin is around the container :
-    /// MMMMMM
-    /// M1122M
-    /// M3344M
-    /// MMMMMM
-    /// Padding is between the cells :
-    /// 11P22
-    /// PPPPP
-    /// 33P44
-    pub fn grid_begin(
-        &mut self,
-        id: &str,
-        cols: usize,
-        rows: usize,
-        cell_width: Coord,
-        cell_height: Coord,
-    ) -> &mut Self {
-        self.try_commit();
-        self.prefix_id(id);
-        self.new_layout(LayoutMode::Grid)
-            .fixed_size(cell_width, cell_height)
-            .grid(cols, rows, cell_width)
-    }
-    pub fn grid_end(&mut self) {
-        self.end_container();
-    }
-    pub fn flexgrid_begin(&mut self, id: &str, widths: &[Coord], height: Coord) -> &mut Self {
-        self.try_commit();
-        self.prefix_id(id);
-        self.new_layout(LayoutMode::Grid)
-            .flexgrid(widths)
-            .min_height(height)
-    }
-    pub fn flexgrid_end(&mut self) {
-        self.end_container();
-    }
-    /// The window behaves like a vbox, but it resets the cursor position
-    pub fn window_begin(
-        &mut self,
-        id: &str,
-        x: Coord,
-        y: Coord,
-        width: Coord,
-        height: Coord,
-    ) -> &mut Self {
-        self.vbox_begin(id).fixed_pos(x, y, width, height)
-    }
-    pub fn window_end(&mut self) {
-        self.vbox_end();
-    }
-    /// the frame_window behaves like a frame, but it resets the cursor position
-    pub fn frame_window_begin(
-        &mut self,
-        id: &str,
-        title: &str,
-        x: Coord,
-        y: Coord,
-        width: Coord,
-        height: Coord,
-    ) -> &mut Self {
-        self.frame_begin(id, title, width, height)
-            .fixed_pos(x, y, width, height)
-    }
-    pub fn frame_window_end(&mut self) {
-        self.frame_end();
-    }
-    /// starts a new vertical container
-    ///
-    /// margin is around the container :
-    /// MMMM
-    /// M11M
-    /// M22M
-    /// M33M
-    /// MMMM
-    ///
-    /// padding is between the rows :
-    /// 11
-    /// PP
-    /// 22
-    /// PP
-    /// 33
-    pub fn vbox_begin(&mut self, id: &str) -> &mut Self {
-        self.try_commit();
-        self.prefix_id(id);
-        self.new_layout(LayoutMode::Vertical)
-    }
-    pub fn vbox_end(&mut self) {
-        self.end_container();
-    }
-    /// starts a new horizontal container
-    ///
-    /// margin is around the container :
-    /// MMMMMMMM
-    /// M112233M
-    /// M112233M
-    /// MMMMMMMM
-    ///
-    /// padding is between the columns :
-    /// 11P22P33
-    /// 11P22P33
-    /// 11P22P33
-    pub fn hbox_begin(&mut self, id: &str) -> &mut Self {
-        self.try_commit();
-        self.prefix_id(id);
-        self.new_layout(LayoutMode::Horizontal).min_height(1)
-    }
-    pub fn hbox_end(&mut self) {
-        self.end_container();
-    }
-    /// a frame behaves like a vbox with a drawn border and a title
-    pub fn frame_begin(&mut self, id: &str, title: &str, width: Coord, height: Coord) -> &mut Self {
-        let back = self.get_color(ColorCode::Background);
-        let fore = self.get_color(ColorCode::Text);
-        self.vbox_begin(id)
-            .fixed_size(width, height)
-            .margin(1)
-            .defered(DeferedCommand::Frame(title.to_owned(), back, fore))
-    }
-    pub fn frame_end(&mut self) {
-        self.try_commit();
-        let mut layout = self.layouts.pop().unwrap();
-        let r = layout.area();
-        match layout.defered_iter().next() {
-            Some(DeferedCommand::Frame(title, col, coltxt)) => {
-                self.render_frame(&title, *col, *coltxt, r)
-            }
-            Some(c) => panic!(
-                "unmatched begin/end calls. Expected Frame instead of {:?}",
-                c
-            ),
-            None => panic!("unmatched begin/end calls"),
-        }
-        self.id_prefix.pop();
-    }
-    /// a popup is a frame_window with an automatic "Ok" button at the bottom
-    pub fn popup_begin(
-        &mut self,
-        id: &str,
-        title: &str,
-        x: Coord,
-        y: Coord,
-        width: Coord,
-        height: Coord,
-    ) -> &mut Self {
-        self.frame_window_begin(id, title, x, y, width, height)
-    }
-    pub fn popup_end(&mut self) -> bool {
-        let ret = self.button("popup_ok", "Ok").pressed();
-        self.frame_window_end();
-        ret
-    }
+
     // =======================================================
     //
     // Basic widgets
@@ -583,331 +411,27 @@ impl Context {
         self.defered(DeferedCommand::LabelColor(r, label.to_owned(), back));
         self
     }
-    // =======================================================
-    //
-    // Buttons
-    //
-    // =======================================================
-    pub fn button(&mut self, id: &str, label: &str) -> &mut Self {
-        self.try_commit();
-        let id = self.generate_id(id);
-        let r = self.next_rectangle(label.chars().count() as Coord, 1);
-        self.update_control(id, &r, false);
-        let focus = self.focus == id;
-        let hover = self.hover == id;
-        self.pressed = hover && self.mouse_pressed == MOUSE_BUTTON_LEFT;
-        let (background_code, foreground_code) = if hover {
-            (ColorCode::ButtonBackgroundHover, ColorCode::ButtonTextHover)
-        } else if focus {
-            (ColorCode::ButtonBackgroundFocus, ColorCode::ButtonTextFocus)
-        } else {
-            (ColorCode::ButtonBackground, ColorCode::ButtonText)
-        };
-        let back = self.get_color(background_code);
-        let fore = self.get_color(foreground_code);
-        self.defered(DeferedCommand::Button(label.to_owned(), back, fore));
-        //println!("{}: {} {} {}",id, focus,hover,pressed);
-        self
-    }
-    /// same as toggle button, but displays a checkbox left to the label
-    /// returns (checkbox_status, status_has_changed_this_frame)
-    pub fn checkbox(&mut self, id: &str, label: &str, initial_state: bool) -> &mut Self {
-        let padded_label = "  ".to_owned() + label;
-        let pressed = self
-            .button(id, &padded_label)
-            .align(TextAlign::Left)
-            .pressed();
-        let checked = {
-            let checked = self
-                .button_state
-                .entry(self.last_id)
-                .or_insert(if initial_state { 1 } else { 0 });
-            if pressed {
-                *checked = 1 - *checked;
-            }
-            *checked
-        };
-        let fore = self.get_color(ColorCode::Text);
-        self.defered(DeferedCommand::CheckBox(checked == 1, fore));
-        self.active = checked == 1;
-        self
-    }
 
-    // =======================================================
-    //
-    // Toggle button
-    //
-    // =======================================================
-
-    fn add_group_id(&mut self, group: usize, id: Id) {
-        let ids = self.toggle_group.entry(group).or_insert_with(HashSet::new);
-        ids.insert(id);
-    }
-    fn disable_toggle_group(&mut self, group: usize) {
-        for id in self.toggle_group.get(&group).unwrap() {
-            self.button_state.insert(*id, 0);
-        }
-    }
-    pub fn toggle_group(&mut self, group: usize) {
-        self.cur_toggle_group = group;
-    }
-    /// a button that switches between active/inactive when clicked.
-    /// returns (button_status, status_has_changed_this_frame)
-    pub fn toggle(&mut self, id: &str, label: &str, active: bool) -> &mut Self {
-        self.try_commit();
-        let id = self.generate_id(id);
-        self.add_group_id(self.cur_toggle_group, id);
-        let r = self.next_rectangle(label.chars().count() as Coord, 1);
-        self.update_control(id, &r, false);
-        let focus = self.focus == id;
-        let hover = self.hover == id;
-        let pressed = hover && self.mouse_pressed == MOUSE_BUTTON_LEFT;
-        let mut on = *self
-            .button_state
-            .get(&self.last_id)
-            .unwrap_or(if active { &1 } else { &0 })
-            == 1;
-        if pressed {
-            if !on {
-                self.disable_toggle_group(self.cur_toggle_group);
-            }
-            on = !on;
-        }
-        self.button_state.insert(id, if on { 1 } else { 0 });
-        let (background_code, foreground_code) = if on && !hover {
-            (ColorCode::ButtonBackgroundHover, ColorCode::ButtonTextHover)
-        } else if focus || hover {
-            (ColorCode::ButtonBackgroundFocus, ColorCode::ButtonTextFocus)
-        } else {
-            (ColorCode::ButtonBackground, ColorCode::ButtonText)
-        };
-        let back = self.get_color(background_code);
-        let fore = self.get_color(foreground_code);
-        self.defered(DeferedCommand::Button(label.to_owned(), back, fore));
-        self.pressed = pressed;
-        self.active = on;
-        self
-    }
-    pub fn set_toggle_status(&mut self, toggle_id: Id, status: bool) {
-        self.button_state
-            .insert(toggle_id, if status { 1 } else { 0 });
-    }
-
-    // =======================================================
-    //
-    // List button
-    //
-    // =======================================================
-
-    /// a button that cycles over a list of values when clicked
-    pub fn list_button_begin(&mut self, id: &str) {
-        self.try_commit();
-        let id = self.generate_id(id);
-        self.list_button_index = 0;
-        self.list_button_width = 0;
-        self.button_state.entry(id).or_insert(0);
-    }
-
-    /// add a new item in the list of values
-    /// returns true if this is the current value
-    pub fn list_button_item(&mut self, label: &str, align: TextAlign) -> bool {
-        self.list_button_width = self.list_button_width.max(label.chars().count() as Coord);
-        let list_button_id = self.last_id();
-        self.list_button_index += 1;
-        assert!(
-            self.button_state.get(&list_button_id).is_some(),
-            "list_button_item must be called inside list_button_begin/list_button_end"
-        );
-        if *self.button_state.get(&list_button_id).unwrap() != self.list_button_index - 1 {
-            return false;
-        }
-        self.list_button_label = label.to_owned();
-        self.list_button_align = align;
-        true
-    }
-
-    /// end the value list.
-    /// returns true if the current value has changed this frame
-    /// if display_count is true, shows the selected item index / items count when the mouse is hovering the button
-    pub fn list_button_end(&mut self, display_count: bool) -> bool {
-        let list_button_id = self.last_id();
-        assert!(
-            self.button_state.get(&list_button_id).is_some(),
-            "list_button_end must be called after list_button_begin"
-        );
-        self.list_button_width += 2;
-        let r = self.next_rectangle(self.list_button_width, 1);
-        self.update_control(list_button_id, &r, false);
-        let focus = self.focus == list_button_id;
-        let hover = self.hover == list_button_id;
-        let pressed = hover && self.mouse_pressed == MOUSE_BUTTON_LEFT;
-        //println!("{}: {} {} {}",list_button_id, focus,hover,pressed);
-        let cur_index = *self.button_state.get(&list_button_id).unwrap();
-        if pressed {
-            let next_index = (cur_index + 1) % self.list_button_index;
-            self.button_state.insert(list_button_id, next_index);
-        }
-        let background_code = if hover {
-            ColorCode::ButtonBackgroundHover
-        } else if focus {
-            ColorCode::ButtonBackgroundFocus
-        } else {
-            ColorCode::ButtonBackground
-        };
-        let back = self.get_color(background_code);
-        let fore = self.get_color(ColorCode::Text);
-        self.draw_rect(r, back);
-        let label = if hover && display_count {
-            let mut label = self.list_button_label.clone();
-            let label_len = label.chars().count();
-            let suffix = format!("|{}/{}", cur_index + 1, self.list_button_index);
-            let suffix_len = suffix.len();
-            if suffix_len + label_len > r.w as usize {
-                label = label
-                    .chars()
-                    .take(r.w as usize - suffix_len)
-                    .collect::<String>();
-            }
-            label + &suffix
-        } else {
-            self.list_button_label.clone()
-        };
-        self.draw_text(r, &label, self.list_button_align, fore);
-        pressed
-    }
-
-    // =======================================================
-    //
-    // Sliders
-    //
-    // =======================================================
-    pub fn fslider(
-        &mut self,
-        id1: &str,
-        width: Coord,
-        min_val: f32,
-        max_val: f32,
-        start_val: f32,
-    ) -> f32 {
-        assert!(min_val < max_val);
-        assert!(start_val >= min_val && start_val <= max_val);
-        self.try_commit();
-        let id = self.generate_id(id1);
-        let value = *self.slider_state.entry(id).or_insert(start_val);
-        let r = self.next_rectangle(width, 1);
-        let was_focus = self.focus == id;
-        self.update_control(id, &r, true);
-        let focus = self.focus == id;
-        let hover = self.hover == id;
-        let pressed = focus && self.mouse_down == MOUSE_BUTTON_LEFT;
-        if pressed {
-            if !self.dnd_on {
-                self.start_dnd(value);
-            } else {
-                let delta = self.mouse_pos.0 - self.dnd_start.0;
-                let value_delta = delta as f32 * (max_val - min_val) / width as f32;
-                let new_value = (self.dnd_value + value_delta).max(min_val).min(max_val);
-                self.slider_state.insert(id, new_value);
-            }
-        } else if was_focus {
-            self.dnd_on = false;
-        }
-        let coef = (value - min_val) / (max_val - min_val);
-        let handle_pos = r.x + ((r.w as f32 * coef + 0.5) as Coord).min(r.w - 1);
-        self.draw_slider(r, handle_pos, focus || hover);
-        value
-    }
-
-    pub fn islider(
-        &mut self,
-        id: &str,
-        width: Coord,
-        min_val: i32,
-        max_val: i32,
-        start_val: i32,
-    ) -> i32 {
-        assert!(min_val < max_val);
-        assert!(start_val >= min_val && start_val <= max_val);
-        self.try_commit();
-        let id = self.generate_id(id);
-        let value = *self.button_state.entry(id).or_insert(start_val);
-        let r = self.next_rectangle(width, 1);
-        let was_focus = self.focus == id;
-        self.update_control(id, &r, true);
-        let focus = self.focus == id;
-        let hover = self.hover == id;
-        let pressed = focus && self.mouse_down == MOUSE_BUTTON_LEFT;
-        if pressed {
-            if !self.dnd_on {
-                self.start_dnd(value as f32);
-            } else {
-                let delta = self.mouse_pos.0 - self.dnd_start.0;
-                let value_delta = delta as f32 * (max_val - min_val) as f32 / width as f32;
-                let new_value = ((self.dnd_value + value_delta) as i32)
-                    .max(min_val)
-                    .min(max_val);
-                self.button_state.insert(id, new_value);
-            }
-        } else if was_focus {
-            self.dnd_on = false;
-        }
-        let coef = (value - min_val) as f32 / (max_val - min_val) as f32;
-        let handle_pos = r.x + ((r.w as f32 * coef + 0.5) as Coord).min(r.w - 1);
-        self.draw_slider(r, handle_pos, focus || hover);
-        value
-    }
-
-    fn draw_slider(&mut self, r: Rect, handle_pos: Coord, active: bool) {
-        let back = self.get_color(if active {
-            ColorCode::ButtonBackgroundHover
-        } else {
-            ColorCode::ButtonBackground
-        });
-        self.draw_rect(r, back);
-        let fore = self.get_color(ColorCode::Text);
-        self.draw_line(r.x, r.y, r.x + r.w, r.y + r.h, fore);
-        let handle_area = Rect {
-            x: handle_pos,
-            y: r.y,
-            w: 1,
-            h: 1,
-        };
-        self.draw_text(handle_area, "|", TextAlign::Left, fore);
-    }
-    // =======================================================
-    //
-    // ProgressBar
-    //
-    // =======================================================
-    pub fn progress_bar(
-        &mut self,
-        width: Coord,
-        min_value: f32,
-        max_value: f32,
-        value: f32,
-        msg: Option<&str>,
-    ) {
-        assert!(min_value < max_value);
-        self.try_commit();
-        let r = self.next_rectangle(width, 1);
-        let cval = value.min(max_value).max(min_value);
-        let coef = (cval - min_value) / (max_value - min_value);
-        self.draw_progress(
-            r,
-            coef,
-            self.get_color(ColorCode::ProgressBack),
-            self.get_color(ColorCode::ProgressFore),
-        );
-        if let Some(msg) = msg {
-            let align = self.next_align.take().unwrap_or(TextAlign::Center);
-            self.draw_text(r, msg, align, self.get_color(ColorCode::ProgressText));
-        }
-    }
     // =======================================================
     //
     // Defered rendering functions
     //
     // =======================================================
+    fn render_defered(&mut self, r: Rect, c: &DeferedCommand) {
+        match c {
+            DeferedCommand::Button(label, col, coltxt) => {
+                self.render_button(r, label, *col, *coltxt)
+            }
+            DeferedCommand::CheckBox(checked, col) => {
+                self.draw_checkbox(self.last_cursor(), *checked, *col)
+            }
+            DeferedCommand::Label(r, label, col, coltxt) => {
+                self.render_label(*r, label, *col, *coltxt)
+            }
+            DeferedCommand::LabelColor(r, label, col) => self.render_label_color(*r, label, *col),
+            _ => (),
+        }
+    }
     fn render_label(&mut self, r: Rect, label: &str, col: Color, coltxt: Color) {
         let align = self.next_align.take().unwrap_or(TextAlign::Left);
         self.draw_rect(r, col);

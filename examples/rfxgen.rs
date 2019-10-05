@@ -21,7 +21,7 @@ impl RfxGen {
         self.ctx
             .hbox_begin("columns")
             .min_width(20)
-            .padding(1)
+            .hpadding(1)
             .margin(2);
         self.left_column();
         self.middle_column();
@@ -30,11 +30,15 @@ impl RfxGen {
         self.ctx.end();
     }
     fn right_column(&mut self) {
-        self.ctx.vbox_begin("right_column").padding(1).min_width(16);
+        self.ctx
+            .vbox_begin("right_column")
+            .margin(1)
+            .padding(1)
+            .min_width(16);
         self.ctx.checkbox("play_on_change", "Play on change", true);
         self.ctx
             .button("play", &format!("{} Play Sound", 16 as char));
-        self.ctx.hbox_begin("slots").padding(1);
+        self.ctx.hbox_begin("slots").padding(1).min_width(2);
         self.ctx.label("Slot").align(ui::TextAlign::Right);
         self.ctx.toggle_group(2);
         self.ctx.toggle("slot1", "1", true);
@@ -62,7 +66,9 @@ impl RfxGen {
         self.ctx.vbox_end();
     }
     fn middle_column(&mut self) {
-        self.ctx.flexgrid_begin("sliders", &[15, 20, 5], 0);
+        self.ctx
+            .flexgrid_begin("sliders", &[15, 15, 5], 0)
+            .padding(1);
 
         //self.ctx.vbox_begin("sliders").padding(1).min_width(36);
         self.slider("volume", 0.0, 100.0, 60.0, true);
