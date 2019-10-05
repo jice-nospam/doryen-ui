@@ -36,38 +36,11 @@ impl RfxGen {
             .button("play", &format!("{} Play Sound", 16 as char));
         self.ctx.hbox_begin("slots").padding(1);
         self.ctx.label("Slot").align(ui::TextAlign::Right);
-        self.ctx.toggle(
-            "slot1",
-            "1",
-            ui::ToggleOptions {
-                active: true,
-                group: Some(2),
-            },
-        );
-        self.ctx.toggle(
-            "slot2",
-            "2",
-            ui::ToggleOptions {
-                group: Some(2),
-                ..Default::default()
-            },
-        );
-        self.ctx.toggle(
-            "slot3",
-            "3",
-            ui::ToggleOptions {
-                group: Some(2),
-                ..Default::default()
-            },
-        );
-        self.ctx.toggle(
-            "slot4",
-            "4",
-            ui::ToggleOptions {
-                group: Some(2),
-                ..Default::default()
-            },
-        );
+        self.ctx.toggle_group(2);
+        self.ctx.toggle("slot1", "1", true);
+        self.ctx.toggle("slot2", "2", false);
+        self.ctx.toggle("slot3", "3", false);
+        self.ctx.toggle("slot4", "4", false);
         self.ctx.hbox_end();
         self.ctx.separator();
         self.ctx
@@ -89,29 +62,32 @@ impl RfxGen {
         self.ctx.vbox_end();
     }
     fn middle_column(&mut self) {
-        self.ctx.vbox_begin("sliders").padding(1).min_width(36);
+        self.ctx.flexgrid_begin("sliders", &[15, 20, 5], 0);
+
+        //self.ctx.vbox_begin("sliders").padding(1).min_width(36);
         self.slider("volume", 0.0, 100.0, 60.0, true);
-        self.ctx.separator();
+        //self.ctx.separator();
         self.slider("attack time", 0.0, 1.0, 0.0, false);
         self.slider("sustain time", 0.0, 1.0, 0.0, false);
         self.slider("sustain punch", 0.0, 1.0, 0.0, false);
         self.slider("decay time", 0.0, 1.0, 0.0, false);
-        self.ctx.separator();
+        //self.ctx.separator();
         self.slider("start frequency", 0.0, 1.0, 0.0, false);
         self.slider("min frequency", 0.0, 1.0, 0.0, false);
         self.slider("slide", 0.0, 1.0, 0.0, false);
         self.slider("delta slide", 0.0, 1.0, 0.0, false);
         self.slider("vibrato depth", 0.0, 1.0, 0.0, false);
         self.slider("vibrato speed", 0.0, 1.0, 0.0, false);
-        self.ctx.separator();
+        //self.ctx.separator();
         self.slider("change amount", 0.0, 1.0, 0.0, false);
         self.slider("change speed", 0.0, 1.0, 0.0, false);
-        self.ctx.separator();
+        //self.ctx.separator();
         self.slider("square duty", 0.0, 1.0, 0.0, false);
         self.slider("duty sweep", 0.0, 1.0, 0.0, false);
-        self.ctx.separator();
+        //self.ctx.separator();
         self.slider("repeat speed", 0.0, 1.0, 0.0, false);
-        self.ctx.vbox_end();
+        //self.ctx.vbox_end();
+        self.ctx.flexgrid_end();
     }
     fn left_column(&mut self) {
         self.ctx.vbox_begin("left_col").padding(1).min_width(20);
@@ -139,45 +115,18 @@ impl RfxGen {
                 .button("select", &format!(" {}  Bip/Select", 26 as char))
                 .align(ui::TextAlign::Left);
             self.ctx.separator();
+            self.ctx.toggle_group(1);
             self.ctx
-                .toggle(
-                    "square",
-                    &format!(" {} Square", 224 as char),
-                    ui::ToggleOptions {
-                        group: Some(1),
-                        active: true,
-                    },
-                )
+                .toggle("square", &format!(" {} Square", 224 as char), true)
                 .align(ui::TextAlign::Left);
             self.ctx
-                .toggle(
-                    "saw",
-                    " ^ Sawtooth",
-                    ui::ToggleOptions {
-                        group: Some(1),
-                        active: false,
-                    },
-                )
+                .toggle("saw", " ^ Sawtooth", false)
                 .align(ui::TextAlign::Left);
             self.ctx
-                .toggle(
-                    "sin",
-                    " ~ Sinwave",
-                    ui::ToggleOptions {
-                        group: Some(1),
-                        active: false,
-                    },
-                )
+                .toggle("sin", " ~ Sinwave", false)
                 .align(ui::TextAlign::Left);
             self.ctx
-                .toggle(
-                    "noise",
-                    &format!(" {} Noise", 176 as char),
-                    ui::ToggleOptions {
-                        group: Some(1),
-                        active: false,
-                    },
-                )
+                .toggle("noise", &format!(" {} Noise", 176 as char), false)
                 .align(ui::TextAlign::Left);
             self.ctx.separator();
             self.ctx.button("mutate", "Mutate");
@@ -193,18 +142,16 @@ impl RfxGen {
         self.ctx.list_button_end(true);
     }
     fn slider(&mut self, label: &str, min_val: f32, max_val: f32, start_val: f32, use_int: bool) {
-        self.ctx.grid_begin(label, 3, 1, 15, 1);
         self.ctx.label(label).align(ui::TextAlign::Right);
         if use_int {
             let value =
                 self.ctx
-                    .islider("is", 10, min_val as i32, max_val as i32, start_val as i32);
+                    .islider(label, 10, min_val as i32, max_val as i32, start_val as i32);
             self.ctx.label(&format!("{}", value));
         } else {
-            let value = self.ctx.fslider("fs", 10, min_val, max_val, start_val);
+            let value = self.ctx.fslider(label, 10, min_val, max_val, start_val);
             self.ctx.label(&format!("{:.2}", value));
         }
-        self.ctx.grid_end();
     }
 }
 

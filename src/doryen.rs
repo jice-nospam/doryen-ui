@@ -1,4 +1,4 @@
-use crate::{Command, Context, Pos, Rect, MOUSE_BUTTON_LEFT};
+use crate::{Command, Context, Coord, Pos, Rect, MOUSE_BUTTON_LEFT};
 use doryen_rs::{Color, Console, DoryenApi, TextAlign, CHAR_LINE_H};
 
 pub fn text_color_len(txt: &str) -> usize {
@@ -39,12 +39,29 @@ pub fn render_doryen(con: &mut Console, ctx: &mut Context) {
             Command::CheckBox(pos, checked, col) => {
                 render_checkbox(con, *pos, *checked, *col);
             }
+            Command::Progress(r, value, back, fore) => {
+                render_progress(con, *r, *value, *back, *fore);
+            }
         }
     }
 }
 
 fn render_rect(con: &mut Console, r: &Rect, col: Color) {
     con.area(r.x, r.y, r.w as u32, r.h as u32, None, Some(col), None);
+}
+fn render_progress(con: &mut Console, r: Rect, coef: f32, back: Color, fore: Color) {
+    let wval = (r.w as f32 * coef * 2.0) as Coord;
+    if wval > 0 {
+        render_rect(con, &Rect::new(r.x, r.y, wval / 2, r.h), fore);
+    }
+    render_rect(
+        con,
+        &Rect::new(r.x + wval / 2, r.y, r.w - wval / 2, r.h),
+        back,
+    );
+    if wval & 1 == 1 {
+        con.cell(r.x + wval / 2, r.y, Some(231), Some(back), Some(fore));
+    }
 }
 fn render_line(con: &mut Console, p1: Pos, p2: Pos, col: Color) {
     con.area(

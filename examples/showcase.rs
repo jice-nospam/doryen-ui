@@ -11,6 +11,7 @@ const CONSOLE_HEIGHT: u32 = 50;
 struct Showcase {
     ctx: ui::Context,
     button_popup: bool,
+    pgbar_value: f32,
 }
 
 impl Showcase {
@@ -58,15 +59,19 @@ impl Showcase {
         ctx.frame_end();
         ctx.frame_begin("grid_frame", "grid", 17, 4);
         ctx.grid_begin("grid", 3, 2, 5, 1);
-        ctx.toggle("grid1", "1", Default::default())
-            .align(ui::TextAlign::Left);
-        ctx.toggle("grid2", "2", Default::default())
-            .align(ui::TextAlign::Left);
-        ctx.toggle("grid3", "3", Default::default())
-            .align(ui::TextAlign::Left);
-        ctx.toggle("grid4", "4", Default::default())
-            .align(ui::TextAlign::Left);
+        ctx.toggle("grid1", "1", Default::default());
+        ctx.toggle("grid2", "2", Default::default());
+        ctx.toggle("grid3", "3", Default::default());
+        ctx.toggle("grid4", "4", Default::default());
         ctx.grid_end();
+        ctx.frame_end();
+        ctx.frame_begin("flexgrid_frame", "flexgrid", 17, 4);
+        ctx.flexgrid_begin("flexgrid", &[3, 5, 7], 2);
+        ctx.toggle("grid1", "1", Default::default());
+        ctx.toggle("grid2", "2", Default::default());
+        ctx.toggle("grid3", "3", Default::default());
+        ctx.toggle("grid4", "4", Default::default());
+        ctx.flexgrid_end();
         ctx.frame_end();
         ctx.frame_begin("labels", "labels", 17, 5);
         ctx.label("right").align(ui::TextAlign::Right);
@@ -85,6 +90,19 @@ impl Showcase {
         ctx.label(&format!("{:.2}", value));
         let value = ctx.islider("islider", 15, 0, 10, 5);
         ctx.label(&format!("{}", value));
+        ctx.frame_end();
+        ctx.frame_begin("pgbar", "progressbar", 17, 7)
+            .margin(1)
+            .padding(1);
+        ctx.progress_bar(13, 0.0, 1.0, self.pgbar_value, None);
+        ctx.progress_bar(
+            13,
+            0.0,
+            1.0,
+            self.pgbar_value,
+            Some(&format!("{:.2}", self.pgbar_value)),
+        );
+        self.pgbar_value = (self.pgbar_value + 0.01) % 1.0;
         ctx.frame_end();
         ctx.end();
     }

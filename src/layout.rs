@@ -19,7 +19,8 @@ pub struct Layout {
     padded_child: bool, // false for first child
     mode: LayoutMode,
     margin: Coord,
-    padding: Coord,
+    vpadding: Coord,
+    hpadding: Coord,
     min_width: Coord,
     max_width: Coord,
     min_height: Coord,
@@ -27,8 +28,8 @@ pub struct Layout {
     cursor: Pos,
     commited: bool,
     last_cursor: Pos,
+    grid_widths: Vec<Coord>,
     grid_cols: usize,
-    grid_rows: usize,
     grid_col: usize,
     grid_row: usize,
     defered: Vec<DeferedCommand>,
@@ -53,24 +54,33 @@ impl Layout {
     pub fn last_cursor(&self) -> Pos {
         self.last_cursor
     }
-    pub fn padding(mut self, value: Coord) -> Self {
-        self.padding = value;
+    pub fn padding(&mut self, value: Coord) -> &mut Self {
+        self.vpadding = value;
+        self.hpadding = value;
         self
     }
-    pub fn defered(mut self, defered: DeferedCommand) -> Self {
+    pub fn vpadding(&mut self, value: Coord) -> &mut Self {
+        self.vpadding = value;
+        self
+    }
+    pub fn hpadding(&mut self, value: Coord) -> &mut Self {
+        self.hpadding = value;
+        self
+    }
+    pub fn defered(&mut self, defered: DeferedCommand) -> &mut Self {
         self.defered.push(defered);
         self
     }
     pub fn defered_iter(&mut self) -> std::slice::Iter<DeferedCommand> {
         self.defered.iter()
     }
-    pub fn margin(mut self, value: Coord) -> Self {
+    pub fn margin(&mut self, value: Coord) -> &mut Self {
         self.margin += value;
         self.cursor.x += value;
         self.cursor.y += value;
         self
     }
-    pub fn fixed_size(mut self, w: Coord, h: Coord) -> Self {
+    pub fn fixed_size(&mut self, w: Coord, h: Coord) -> &mut Self {
         self.min_width = w;
         self.max_width = w;
         self.min_height = h;
@@ -79,16 +89,21 @@ impl Layout {
         self.r.h = h;
         self
     }
-    pub fn min_width(mut self, value: Coord) -> Self {
+    pub fn move_cursor(&mut self, deltax: Coord, deltay: Coord) -> &mut Self {
+        self.cursor.x += deltax;
+        self.cursor.y += deltay;
+        self
+    }
+    pub fn min_width(&mut self, value: Coord) -> &mut Self {
         self.min_width = value;
         self.r.w = self.r.w.max(value);
         self
     }
-    pub fn max_width(mut self, value: Coord) -> Self {
+    pub fn max_width(&mut self, value: Coord) -> &mut Self {
         self.max_width = value;
         self
     }
-    pub fn pos(mut self, x: Coord, y: Coord) -> Self {
+    pub fn pos(&mut self, x: Coord, y: Coord) -> &mut Self {
         self.r.x = x;
         self.r.y = y;
         self.cursor.x = x + self.margin;
@@ -96,26 +111,40 @@ impl Layout {
         self.commited = true;
         self
     }
-    pub fn size(mut self, w: Coord, h: Coord) -> Self {
+    pub fn size(&mut self, w: Coord, h: Coord) -> &mut Self {
         self.r.w = w;
         self.r.h = h;
         self
     }
-    pub fn min_height(mut self, value: Coord) -> Self {
+    pub fn min_height(&mut self, value: Coord) -> &mut Self {
         self.min_height = value;
         self.r.h = self.r.h.max(value);
         self
     }
-    pub fn max_height(mut self, value: Coord) -> Self {
+    pub fn max_height(&mut self, value: Coord) -> &mut Self {
         self.max_height = value;
         self
     }
-    pub fn grid(mut self, cols: usize, rows: usize) -> Self {
+    pub fn grid(&mut self, cols: usize, rows: usize, width: Coord) -> &mut Self {
         self.mode = LayoutMode::Grid;
         self.grid_cols = cols;
-        self.grid_rows = rows;
-        self.r.w = self.max_width * cols as i32 + self.margin * 2;
-        self.r.h = self.max_height * rows as i32 + self.margin * 2;
+        self.grid_widths = vec![width; cols];
+        self.r.w = self.max_width * cols as Coord + self.margin * 2;
+        self.r.h = self.max_height * rows as Coord + self.margin * 2;
+        self
+    }
+    pub fn flexgrid(&mut self, widths: &[Coord]) -> &mut Self {
+        self.mode = LayoutMode::Grid;
+        self.grid_cols = widths.len();
+        let width = widths.iter().sum::<Coord>();
+        self.max_width = widths[0];
+        self.min_width = widths[0];
+        self.min_height = 1;
+        self.max_height = 1;
+        self.grid_widths = widths.to_vec();
+        self.r.w = width + self.margin * 2;
+
+        self.r.h = self.max_height + self.margin * 2;
         self
     }
     pub fn commit(&mut self, child: &mut Layout) -> Rect {
@@ -137,24 +166,24 @@ impl Layout {
         child.cursor.y += self.cursor.y - child.r.y;
         child.r.x = self.cursor.x;
         child.r.y = self.cursor.y;
-        child.r.w = child.r.w.min(self.max_width - self.padding);
-        child.r.h = child.r.h.min(self.max_height - self.padding);
-        child.r.w = child.r.w.max(self.min_width - self.padding);
-        child.r.h = child.r.h.max(self.min_height - self.padding);
+        child.r.w = self.max_width;
+        child.r.h = self.max_height;
         self.grid_col += 1;
         if self.grid_col == self.grid_cols {
             self.grid_col = 0;
             self.cursor.x = self.r.x + self.margin;
-            self.cursor.y += self.max_height;
+            self.cursor.y += self.max_height + self.vpadding;
             self.grid_row += 1;
         } else {
-            self.cursor.x += self.max_width;
+            self.cursor.x += self.max_width + self.hpadding;
         }
+        self.max_width = self.grid_widths[self.grid_col];
+        self.min_width = self.max_width;
         child.r
     }
     fn next_column(&mut self, child: &mut Layout) -> Rect {
         if self.padded_child {
-            self.cursor.x += self.padding;
+            self.cursor.x += self.hpadding;
         }
         self.padded_child = true;
         child.cursor.x += self.cursor.x - child.r.x;
@@ -175,7 +204,7 @@ impl Layout {
     }
     fn next_row(&mut self, child: &mut Layout) -> Rect {
         if self.padded_child {
-            self.cursor.y += self.padding;
+            self.cursor.y += self.vpadding;
         }
         self.padded_child = true;
         child.cursor.x += self.cursor.x - child.r.x;
@@ -201,16 +230,15 @@ mod tests {
     }
 
     pub fn new_vertical(margin: Coord, padding: Coord) -> Layout {
-        Layout::new(LayoutMode::Vertical)
-            .margin(margin)
-            .padding(padding)
+        let mut layout = Layout::new(LayoutMode::Vertical);
+        layout.margin(margin).padding(padding);
+        layout
     }
     pub fn new_horizontal(width: Coord, margin: Coord, padding: Coord) -> Layout {
         assert!(width > 2 * margin);
-        Layout::new(LayoutMode::Horizontal)
-            .margin(margin)
-            .padding(padding)
-            .min_width(width)
+        let mut layout = Layout::new(LayoutMode::Horizontal);
+        layout.margin(margin).padding(padding).min_width(width);
+        layout
     }
     pub fn new_grid(
         cols: usize,
@@ -220,13 +248,13 @@ mod tests {
         margin: Coord,
         padding: Coord,
     ) -> Layout {
-        assert!(width > padding);
-        assert!(height > padding);
-        Layout::new(LayoutMode::Grid)
-            .grid(cols, rows)
+        let mut layout = Layout::new(LayoutMode::Grid);
+        layout
+            .grid(cols, rows, width)
             .margin(margin)
             .padding(padding)
-            .fixed_size(width, height)
+            .fixed_size(width, height);
+        layout
     }
     fn inject_widget(root: &mut Layout, w: Coord, h: Coord) -> Rect {
         root.commit(&mut Layout::new(LayoutMode::Single).size(w, h))
@@ -305,7 +333,7 @@ mod tests {
     }
     #[test]
     fn test_grid_padding() {
-        let mut root = new_grid(2, 2, 2, 2, 0, 1);
+        let mut root = new_grid(2, 2, 1, 1, 0, 1);
         assert_layout(&inject_widget(&mut root, 1, 1), 0, 0, 1, 1);
         assert_layout(&inject_widget(&mut root, 1, 1), 2, 0, 1, 1);
         assert_layout(&inject_widget(&mut root, 1, 1), 0, 2, 1, 1);
@@ -313,7 +341,7 @@ mod tests {
     }
     #[test]
     fn test_grid_padding_margin() {
-        let mut root = new_grid(2, 2, 2, 2, 1, 1);
+        let mut root = new_grid(2, 2, 1, 1, 1, 1);
         assert_layout(&inject_widget(&mut root, 1, 1), 1, 1, 1, 1);
         assert_layout(&inject_widget(&mut root, 1, 1), 3, 1, 1, 1);
         assert_layout(&inject_widget(&mut root, 1, 1), 1, 3, 1, 1);

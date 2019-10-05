@@ -34,11 +34,11 @@ const NULL_ID: Id = 0;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum DeferedCommand {
-    Frame(String, ColorCode, ColorCode),
-    Button(String, ColorCode),
-    CheckBox(bool, ColorCode),
-    Label(Rect, String),
-    LabelColor(Rect, String),
+    Frame(String, Color, Color),
+    Button(String, Color, Color),
+    CheckBox(bool, Color),
+    Label(Rect, String, Color, Color),
+    LabelColor(Rect, String, Color),
 }
 
 #[derive(Clone, Copy, Default, Debug, PartialEq, Eq)]
@@ -91,6 +91,7 @@ pub enum Command {
     Frame(String, Rect, Color, Color),
     Line(Pos, Pos, Color),
     CheckBox(Pos, bool, Color),
+    Progress(Rect, f32, Color, Color),
 }
 
 pub trait Renderer {
@@ -100,17 +101,12 @@ pub trait Renderer {
     fn text_color(&mut self, pos: Pos, txt: &str, align: TextAlign);
     fn frame(&mut self, txt: &str, rect: &Rect, col: Color, coltxt: Color);
     fn checkbox(&mut self, pos: Pos, checked: bool, col: Color);
+    fn progress(&mut self, rect: &Rect, val: f32, back: Color, fore: Color);
 }
 
 pub const MOUSE_BUTTON_LEFT: usize = 1;
 pub const MOUSE_BUTTON_RIGHT: usize = 2;
 pub const MOUSE_BUTTON_MIDDLE: usize = 4;
-
-#[derive(Copy, Clone, Debug, Default)]
-pub struct ToggleOptions {
-    pub group: Option<usize>,
-    pub active: bool,
-}
 
 #[derive(Default)]
 pub struct Context {
@@ -134,6 +130,7 @@ pub struct Context {
     button_state: HashMap<Id, i32>,
     slider_state: HashMap<Id, f32>,
     toggle_group: HashMap<usize, HashSet<Id>>,
+    cur_toggle_group: usize,
     pressed: bool,
     active: bool,
     // list-buttons
@@ -206,6 +203,7 @@ impl Context {
                 Command::Frame(txt, r, col, coltxt) => renderer.frame(txt, r, *col, *coltxt),
                 Command::Line(p1, p2, col) => renderer.line(*p1, *p2, *col),
                 Command::CheckBox(pos, checked, col) => renderer.checkbox(*pos, *checked, *col),
+                Command::Progress(r, val, back, fore) => renderer.progress(r, *val, *back, *fore),
             }
         }
     }
@@ -223,15 +221,40 @@ impl Context {
         r
     }
     pub fn padding(&mut self, padding: Coord) -> &mut Self {
-        self.next_layout = Some(self.next_layout.take().unwrap().padding(padding));
+        if let Some(layout) = self.next_layout.as_mut() {
+            layout.padding(padding);
+        }
+        self
+    }
+    pub fn vpadding(&mut self, padding: Coord) -> &mut Self {
+        if let Some(layout) = self.next_layout.as_mut() {
+            layout.vpadding(padding);
+        }
+        self
+    }
+    pub fn hpadding(&mut self, padding: Coord) -> &mut Self {
+        if let Some(layout) = self.next_layout.as_mut() {
+            layout.hpadding(padding);
+        }
         self
     }
     pub fn align(&mut self, align: TextAlign) -> &mut Self {
         self.next_align = Some(align);
         self
     }
+    pub fn move_cursor(&mut self, deltax: Coord, deltay: Coord) -> &mut Self {
+        if let Some(layout) = self.layouts.last_mut() {
+            layout.move_cursor(deltax, deltay);
+        }
+        self
+    }
+    pub fn spacing(&mut self) -> &mut Self {
+        self.move_cursor(0, 1)
+    }
     pub fn margin(&mut self, margin: Coord) -> &mut Self {
-        self.next_layout = Some(self.next_layout.take().unwrap().margin(margin));
+        if let Some(layout) = self.next_layout.as_mut() {
+            layout.margin(margin);
+        }
         self
     }
     pub fn min_width(&mut self, value: Coord) -> &mut Self {
@@ -239,45 +262,63 @@ impl Context {
             self.next_layout.is_some(),
             "min_width should only be called after a container begin"
         );
-        self.next_layout = Some(self.next_layout.take().unwrap().min_width(value));
+        if let Some(layout) = self.next_layout.as_mut() {
+            layout.min_width(value);
+        }
         self
     }
     pub fn max_width(&mut self, value: Coord) -> &mut Self {
-        self.next_layout = Some(self.next_layout.take().unwrap().max_width(value));
+        if let Some(layout) = self.next_layout.as_mut() {
+            layout.max_width(value);
+        }
         self
     }
     pub fn min_height(&mut self, value: Coord) -> &mut Self {
-        self.next_layout = Some(self.next_layout.take().unwrap().min_height(value));
+        if let Some(layout) = self.next_layout.as_mut() {
+            layout.min_height(value);
+        }
         self
     }
     pub fn max_height(&mut self, value: Coord) -> &mut Self {
-        self.next_layout = Some(self.next_layout.take().unwrap().max_height(value));
+        if let Some(layout) = self.next_layout.as_mut() {
+            layout.max_height(value);
+        }
         self
     }
     pub fn defered(&mut self, cmd: DeferedCommand) -> &mut Self {
-        self.next_layout = Some(self.next_layout.take().unwrap().defered(cmd));
+        if let Some(layout) = self.next_layout.as_mut() {
+            layout.defered(cmd);
+        }
         self
     }
-    fn grid(&mut self, cols: usize, rows: usize) -> &mut Self {
-        self.next_layout = Some(self.next_layout.take().unwrap().grid(cols, rows));
+    fn grid(&mut self, cols: usize, rows: usize, width: Coord) -> &mut Self {
+        if let Some(layout) = self.next_layout.as_mut() {
+            layout.grid(cols, rows, width);
+        }
         self
     }
     fn size(&mut self, width: Coord, height: Coord) -> &mut Self {
-        self.next_layout = Some(self.next_layout.take().unwrap().size(width, height));
+        if let Some(layout) = self.next_layout.as_mut() {
+            layout.size(width, height);
+        }
+        self
+    }
+    fn flexgrid(&mut self, widths: &[Coord]) -> &mut Self {
+        if let Some(layout) = self.next_layout.as_mut() {
+            layout.flexgrid(&widths);
+        }
         self
     }
     fn fixed_size(&mut self, width: Coord, height: Coord) -> &mut Self {
-        self.next_layout = Some(self.next_layout.take().unwrap().fixed_size(width, height));
+        if let Some(layout) = self.next_layout.as_mut() {
+            layout.fixed_size(width, height);
+        }
         self
     }
     fn fixed_pos(&mut self, x: Coord, y: Coord, width: Coord, height: Coord) -> &mut Self {
-        self.next_layout = Some(
-            self.next_layout
-                .take()
-                .unwrap()
-                .pos(x, y)
-                .size(width, height),
-        );
+        if let Some(layout) = self.next_layout.as_mut() {
+            layout.pos(x, y).size(width, height);
+        }
         self
     }
     fn new_layout(&mut self, mode: LayoutMode) -> &mut Self {
@@ -293,12 +334,18 @@ impl Context {
             let r = layout.area();
             for c in layout.defered_iter() {
                 match c {
-                    DeferedCommand::Button(label, col) => self.render_button(r, label, *col),
+                    DeferedCommand::Button(label, col, coltxt) => {
+                        self.render_button(r, label, *col, *coltxt)
+                    }
                     DeferedCommand::CheckBox(checked, col) => {
                         self.draw_checkbox(self.last_cursor(), *checked, *col)
                     }
-                    DeferedCommand::Label(r, label) => self.render_label(*r, label),
-                    DeferedCommand::LabelColor(r, label) => self.render_label_color(*r, label),
+                    DeferedCommand::Label(r, label, col, coltxt) => {
+                        self.render_label(*r, label, *col, *coltxt)
+                    }
+                    DeferedCommand::LabelColor(r, label, col) => {
+                        self.render_label_color(*r, label, *col)
+                    }
                     _ => (),
                 }
             }
@@ -351,7 +398,7 @@ impl Context {
     // =======================================================
     /// starts a new grid container.
     /// cols,rows : number of cells in the grid
-    /// width,height : size of a cell
+    /// cell_width,cell_height : size of a cell
     /// Example : 2,2,2,1
     /// 1122
     /// 3344
@@ -369,16 +416,26 @@ impl Context {
         id: &str,
         cols: usize,
         rows: usize,
-        width: Coord,
-        height: Coord,
+        cell_width: Coord,
+        cell_height: Coord,
     ) -> &mut Self {
         self.try_commit();
         self.prefix_id(id);
         self.new_layout(LayoutMode::Grid)
-            .fixed_size(width, height)
-            .grid(cols, rows)
+            .fixed_size(cell_width, cell_height)
+            .grid(cols, rows, cell_width)
     }
     pub fn grid_end(&mut self) {
+        self.end_container();
+    }
+    pub fn flexgrid_begin(&mut self, id: &str, widths: &[Coord], height: Coord) -> &mut Self {
+        self.try_commit();
+        self.prefix_id(id);
+        self.new_layout(LayoutMode::Grid)
+            .flexgrid(widths)
+            .min_height(height)
+    }
+    pub fn flexgrid_end(&mut self) {
         self.end_container();
     }
     /// The window behaves like a vbox, but it resets the cursor position
@@ -456,14 +513,12 @@ impl Context {
     }
     /// a frame behaves like a vbox with a drawn border and a title
     pub fn frame_begin(&mut self, id: &str, title: &str, width: Coord, height: Coord) -> &mut Self {
+        let back = self.get_color(ColorCode::Background);
+        let fore = self.get_color(ColorCode::Text);
         self.vbox_begin(id)
             .fixed_size(width, height)
             .margin(1)
-            .defered(DeferedCommand::Frame(
-                title.to_owned(),
-                ColorCode::Background,
-                ColorCode::Text,
-            ))
+            .defered(DeferedCommand::Frame(title.to_owned(), back, fore))
     }
     pub fn frame_end(&mut self) {
         self.try_commit();
@@ -506,21 +561,26 @@ impl Context {
     pub fn separator(&mut self) {
         self.try_commit();
         let r = self.next_rectangle(0, 0);
-        self.draw_rect(r, ColorCode::Background);
-        self.draw_line(r.x, r.y, r.x + r.w, r.y + r.h, ColorCode::Foreground);
+        let back = self.get_color(ColorCode::Background);
+        let fore = self.get_color(ColorCode::Foreground);
+        self.draw_rect(r, back);
+        self.draw_line(r.x, r.y, r.x + r.w, r.y + r.h, fore);
     }
 
     pub fn label(&mut self, label: &str) -> &mut Self {
         self.try_commit();
         let r = self.next_rectangle(label.chars().count() as Coord, 1);
-        self.defered(DeferedCommand::Label(r, label.to_owned()));
+        let back = self.get_color(ColorCode::Background);
+        let fore = self.get_color(ColorCode::Text);
+        self.defered(DeferedCommand::Label(r, label.to_owned(), back, fore));
         self
     }
     pub fn label_color(&mut self, label: &str) -> &mut Self {
         self.try_commit();
         let len = text_color_len(label) as Coord;
         let r = self.next_rectangle(len, 1);
-        self.defered(DeferedCommand::LabelColor(r, label.to_owned()));
+        let back = self.get_color(ColorCode::Background);
+        self.defered(DeferedCommand::LabelColor(r, label.to_owned(), back));
         self
     }
     // =======================================================
@@ -536,16 +596,16 @@ impl Context {
         let focus = self.focus == id;
         let hover = self.hover == id;
         self.pressed = hover && self.mouse_pressed == MOUSE_BUTTON_LEFT;
-        self.defered(DeferedCommand::Button(
-            label.to_owned(),
-            if hover {
-                ColorCode::ButtonBackgroundHover
-            } else if focus {
-                ColorCode::ButtonBackgroundFocus
-            } else {
-                ColorCode::ButtonBackground
-            },
-        ));
+        let (background_code, foreground_code) = if hover {
+            (ColorCode::ButtonBackgroundHover, ColorCode::ButtonTextHover)
+        } else if focus {
+            (ColorCode::ButtonBackgroundFocus, ColorCode::ButtonTextFocus)
+        } else {
+            (ColorCode::ButtonBackground, ColorCode::ButtonText)
+        };
+        let back = self.get_color(background_code);
+        let fore = self.get_color(foreground_code);
+        self.defered(DeferedCommand::Button(label.to_owned(), back, fore));
         //println!("{}: {} {} {}",id, focus,hover,pressed);
         self
     }
@@ -567,7 +627,8 @@ impl Context {
             }
             *checked
         };
-        self.defered(DeferedCommand::CheckBox(checked == 1, ColorCode::Text));
+        let fore = self.get_color(ColorCode::Text);
+        self.defered(DeferedCommand::CheckBox(checked == 1, fore));
         self.active = checked == 1;
         self
     }
@@ -587,14 +648,15 @@ impl Context {
             self.button_state.insert(*id, 0);
         }
     }
+    pub fn toggle_group(&mut self, group: usize) {
+        self.cur_toggle_group = group;
+    }
     /// a button that switches between active/inactive when clicked.
     /// returns (button_status, status_has_changed_this_frame)
-    pub fn toggle(&mut self, id: &str, label: &str, opt: ToggleOptions) -> &mut Self {
+    pub fn toggle(&mut self, id: &str, label: &str, active: bool) -> &mut Self {
         self.try_commit();
         let id = self.generate_id(id);
-        if let Some(group) = opt.group {
-            self.add_group_id(group, id);
-        }
+        self.add_group_id(self.cur_toggle_group, id);
         let r = self.next_rectangle(label.chars().count() as Coord, 1);
         self.update_control(id, &r, false);
         let focus = self.focus == id;
@@ -603,27 +665,25 @@ impl Context {
         let mut on = *self
             .button_state
             .get(&self.last_id)
-            .unwrap_or(if opt.active { &1 } else { &0 })
+            .unwrap_or(if active { &1 } else { &0 })
             == 1;
         if pressed {
             if !on {
-                if let Some(group) = opt.group {
-                    self.disable_toggle_group(group);
-                }
+                self.disable_toggle_group(self.cur_toggle_group);
             }
             on = !on;
         }
         self.button_state.insert(id, if on { 1 } else { 0 });
-        self.defered(DeferedCommand::Button(
-            label.to_owned(),
-            if on && !hover {
-                ColorCode::ButtonBackgroundHover
-            } else if focus || hover {
-                ColorCode::ButtonBackgroundFocus
-            } else {
-                ColorCode::ButtonBackground
-            },
-        ));
+        let (background_code, foreground_code) = if on && !hover {
+            (ColorCode::ButtonBackgroundHover, ColorCode::ButtonTextHover)
+        } else if focus || hover {
+            (ColorCode::ButtonBackgroundFocus, ColorCode::ButtonTextFocus)
+        } else {
+            (ColorCode::ButtonBackground, ColorCode::ButtonText)
+        };
+        let back = self.get_color(background_code);
+        let fore = self.get_color(foreground_code);
+        self.defered(DeferedCommand::Button(label.to_owned(), back, fore));
         self.pressed = pressed;
         self.active = on;
         self
@@ -687,16 +747,16 @@ impl Context {
             let next_index = (cur_index + 1) % self.list_button_index;
             self.button_state.insert(list_button_id, next_index);
         }
-        self.draw_rect(
-            r,
-            if hover {
-                ColorCode::ButtonBackgroundHover
-            } else if focus {
-                ColorCode::ButtonBackgroundFocus
-            } else {
-                ColorCode::ButtonBackground
-            },
-        );
+        let background_code = if hover {
+            ColorCode::ButtonBackgroundHover
+        } else if focus {
+            ColorCode::ButtonBackgroundFocus
+        } else {
+            ColorCode::ButtonBackground
+        };
+        let back = self.get_color(background_code);
+        let fore = self.get_color(ColorCode::Text);
+        self.draw_rect(r, back);
         let label = if hover && display_count {
             let mut label = self.list_button_label.clone();
             let label_len = label.chars().count();
@@ -712,7 +772,7 @@ impl Context {
         } else {
             self.list_button_label.clone()
         };
-        self.draw_text(r, &label, self.list_button_align, ColorCode::Text);
+        self.draw_text(r, &label, self.list_button_align, fore);
         pressed
     }
 
@@ -798,44 +858,73 @@ impl Context {
     }
 
     fn draw_slider(&mut self, r: Rect, handle_pos: Coord, active: bool) {
-        let col = if active {
+        let back = self.get_color(if active {
             ColorCode::ButtonBackgroundHover
         } else {
             ColorCode::ButtonBackground
-        };
-        self.draw_rect(r, col);
-        self.draw_line(r.x, r.y, r.x + r.w, r.y + r.h, ColorCode::Text);
+        });
+        self.draw_rect(r, back);
+        let fore = self.get_color(ColorCode::Text);
+        self.draw_line(r.x, r.y, r.x + r.w, r.y + r.h, fore);
         let handle_area = Rect {
             x: handle_pos,
             y: r.y,
             w: 1,
             h: 1,
         };
-        self.draw_text(handle_area, "|", TextAlign::Left, ColorCode::Text);
+        self.draw_text(handle_area, "|", TextAlign::Left, fore);
     }
-
+    // =======================================================
+    //
+    // ProgressBar
+    //
+    // =======================================================
+    pub fn progress_bar(
+        &mut self,
+        width: Coord,
+        min_value: f32,
+        max_value: f32,
+        value: f32,
+        msg: Option<&str>,
+    ) {
+        assert!(min_value < max_value);
+        self.try_commit();
+        let r = self.next_rectangle(width, 1);
+        let cval = value.min(max_value).max(min_value);
+        let coef = (cval - min_value) / (max_value - min_value);
+        self.draw_progress(
+            r,
+            coef,
+            self.get_color(ColorCode::ProgressBack),
+            self.get_color(ColorCode::ProgressFore),
+        );
+        if let Some(msg) = msg {
+            let align = self.next_align.take().unwrap_or(TextAlign::Center);
+            self.draw_text(r, msg, align, self.get_color(ColorCode::ProgressText));
+        }
+    }
     // =======================================================
     //
     // Defered rendering functions
     //
     // =======================================================
-    fn render_label(&mut self, r: Rect, label: &str) {
+    fn render_label(&mut self, r: Rect, label: &str, col: Color, coltxt: Color) {
         let align = self.next_align.take().unwrap_or(TextAlign::Left);
-        self.draw_rect(r, ColorCode::Background);
-        self.draw_text(r, label, align, ColorCode::Text);
+        self.draw_rect(r, col);
+        self.draw_text(r, label, align, coltxt);
     }
-    fn render_label_color(&mut self, r: Rect, label: &str) {
+    fn render_label_color(&mut self, r: Rect, label: &str, col: Color) {
         let align = self.next_align.take().unwrap_or(TextAlign::Left);
-        self.draw_rect(r, ColorCode::Background);
+        self.draw_rect(r, col);
         self.draw_text_color(r, label, align);
     }
 
-    fn render_button(&mut self, r: Rect, label: &str, col: ColorCode) {
+    fn render_button(&mut self, r: Rect, label: &str, col: Color, coltxt: Color) {
         let align = self.next_align.take().unwrap_or(TextAlign::Center);
         self.draw_rect(r, col);
-        self.draw_text(r, label, align, ColorCode::Text);
+        self.draw_text(r, label, align, coltxt);
     }
-    fn render_frame(&mut self, title: &str, col: ColorCode, coltxt: ColorCode, r: Rect) {
+    fn render_frame(&mut self, title: &str, col: Color, coltxt: Color, r: Rect) {
         let title = if title.chars().count() as i32 > r.w - 2 {
             title.chars().take(r.w as usize - 2).collect::<String>()
         } else {
@@ -849,19 +938,18 @@ impl Context {
     // Basic drawing functions
     //
     // =======================================================
-    fn draw_checkbox(&mut self, p: Pos, checked: bool, col: ColorCode) {
-        let col = self.get_color(col);
+    fn draw_progress(&mut self, r: Rect, coef: f32, back: Color, fore: Color) {
+        self.commands.push(Command::Progress(r, coef, back, fore));
+    }
+    fn draw_checkbox(&mut self, p: Pos, checked: bool, col: Color) {
         self.commands.push(Command::CheckBox(p, checked, col));
     }
-    fn draw_frame(&mut self, r: Rect, title: &str, col: ColorCode, coltxt: ColorCode) {
-        let col = self.get_color(col);
-        let coltxt = self.get_color(coltxt);
+    fn draw_frame(&mut self, r: Rect, title: &str, col: Color, coltxt: Color) {
         self.commands
             .push(Command::Frame(title.to_owned(), r, col, coltxt));
     }
 
-    fn draw_line(&mut self, x1: Coord, y1: Coord, x2: Coord, y2: Coord, col: ColorCode) {
-        let col = self.get_color(col);
+    fn draw_line(&mut self, x1: Coord, y1: Coord, x2: Coord, y2: Coord, col: Color) {
         self.commands.push(Command::Line(
             Pos { x: x1, y: y1 },
             Pos { x: x2, y: y2 },
@@ -869,14 +957,12 @@ impl Context {
         ));
     }
 
-    fn draw_rect(&mut self, r: Rect, col: ColorCode) {
-        let col = self.get_color(col);
+    fn draw_rect(&mut self, r: Rect, col: Color) {
         self.commands.push(Command::Rect(r, col));
     }
 
-    fn draw_text(&mut self, r: Rect, txt: &str, align: TextAlign, col: ColorCode) {
+    fn draw_text(&mut self, r: Rect, txt: &str, align: TextAlign, col: Color) {
         let (pos, truncated_text) = format_text(r, txt, align);
-        let col = self.get_color(col);
         self.commands.push(Command::Text(truncated_text, pos, col));
     }
 
@@ -1001,6 +1087,7 @@ mod tests {
                 x += 1;
             }
         }
+        fn progress(&mut self, _r: &ui::Rect, _value: f32, _back: ui::Color, _fore: ui::Color) {}
         fn frame(&mut self, txt: &str, rect: &ui::Rect, _col: ui::Color, coltxt: ui::Color) {
             let rx = rect.x as usize;
             let ry = rect.y as usize;

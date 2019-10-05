@@ -5,6 +5,12 @@ pub enum ColorCode {
     ButtonBackground,
     ButtonBackgroundHover,
     ButtonBackgroundFocus,
+    ButtonText,
+    ButtonTextHover,
+    ButtonTextFocus,
+    ProgressBack,
+    ProgressFore,
+    ProgressText,
     Text,
 }
 
@@ -16,7 +22,13 @@ impl Into<usize> for ColorCode {
             ColorCode::ButtonBackground => COLOR_BUTTON_BACKGROUND,
             ColorCode::ButtonBackgroundHover => COLOR_BUTTON_BACKGROUND_HOVER,
             ColorCode::ButtonBackgroundFocus => COLOR_BUTTON_BACKGROUND_FOCUS,
+            ColorCode::ButtonText => COLOR_BUTTON_TEXT,
+            ColorCode::ButtonTextHover => COLOR_BUTTON_TEXT_HOVER,
+            ColorCode::ButtonTextFocus => COLOR_BUTTON_TEXT_FOCUS,
             ColorCode::Text => COLOR_TEXT,
+            ColorCode::ProgressBack => COLOR_PROGRESS_BACK,
+            ColorCode::ProgressFore => COLOR_PROGRESS_FORE,
+            ColorCode::ProgressText => COLOR_PROGRESS_TEXT,
         }
     }
 }
@@ -27,8 +39,15 @@ const COLOR_FOREGROUND: usize = 1;
 const COLOR_BUTTON_BACKGROUND: usize = 2;
 const COLOR_BUTTON_BACKGROUND_HOVER: usize = 3;
 const COLOR_BUTTON_BACKGROUND_FOCUS: usize = 4;
-const COLOR_TEXT: usize = 5;
-const COLOR_COUNT: usize = 6;
+const COLOR_BUTTON_TEXT: usize = 5;
+const COLOR_BUTTON_TEXT_HOVER: usize = 6;
+const COLOR_BUTTON_TEXT_FOCUS: usize = 7;
+const COLOR_TEXT: usize = 8;
+const COLOR_PROGRESS_BACK: usize = 9;
+const COLOR_PROGRESS_FORE: usize = 10;
+const COLOR_PROGRESS_TEXT: usize = 11;
+
+const COLOR_COUNT: usize = 12;
 
 pub struct ColorManager {
     colors: [Vec<Color>; COLOR_COUNT],
@@ -44,6 +63,12 @@ impl Default for ColorManager {
                 vec![(201, 239, 254, 255)],
                 vec![(151, 232, 235, 255)],
                 vec![(104, 104, 104, 255)],
+                vec![(154, 154, 154, 255)],
+                vec![(255, 255, 255, 255)],
+                vec![(104, 104, 104, 255)],
+                vec![(50, 50, 154, 255)],
+                vec![(120, 120, 200, 255)],
+                vec![(180, 180, 220, 255)],
             ],
         }
     }
