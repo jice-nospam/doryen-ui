@@ -40,6 +40,7 @@ pub enum DeferedCommand {
     Frame(String, Color, Color),
     Button(String, Color, Color),
     CheckBox(bool, Color),
+    DropDown(bool, Color),
     Label(Rect, String, Color, Color),
     LabelColor(Rect, String, Color),
 }
@@ -94,6 +95,7 @@ pub enum Command {
     Frame(String, Rect, Color, Color),
     Line(Pos, Pos, Color),
     CheckBox(Pos, bool, Color),
+    DropDown(Pos, bool, Color),
     Progress(Rect, f32, Color, Color),
 }
 
@@ -104,6 +106,7 @@ pub trait Renderer {
     fn text_color(&mut self, pos: Pos, txt: &str, align: TextAlign);
     fn frame(&mut self, txt: &str, rect: &Rect, col: Color, coltxt: Color);
     fn checkbox(&mut self, pos: Pos, checked: bool, col: Color);
+    fn dropdown(&mut self, pos: Pos, checked: bool, col: Color);
     fn progress(&mut self, rect: &Rect, val: f32, back: Color, fore: Color);
 }
 
@@ -206,6 +209,7 @@ impl Context {
                 Command::Frame(txt, r, col, coltxt) => renderer.frame(txt, r, *col, *coltxt),
                 Command::Line(p1, p2, col) => renderer.line(*p1, *p2, *col),
                 Command::CheckBox(pos, checked, col) => renderer.checkbox(*pos, *checked, *col),
+                Command::DropDown(pos, checked, col) => renderer.dropdown(*pos, *checked, *col),
                 Command::Progress(r, val, back, fore) => renderer.progress(r, *val, *back, *fore),
             }
         }
@@ -330,8 +334,7 @@ impl Context {
     }
     fn try_commit(&mut self) {
         if let Some(mut layout) = self.next_layout.take() {
-            let commited = layout.commited();
-            if !commited {
+            if !layout.commited() {
                 self.layouts.last_mut().unwrap().commit(&mut layout);
             }
             let r = layout.area();
@@ -359,6 +362,9 @@ impl Context {
     }
     fn last_cursor(&self) -> Pos {
         self.layouts.last().unwrap().last_cursor()
+    }
+    fn last_area(&self) -> Rect {
+        self.layouts.last().unwrap().area()
     }
 
     // =======================================================
@@ -425,6 +431,9 @@ impl Context {
             DeferedCommand::CheckBox(checked, col) => {
                 self.draw_checkbox(self.last_cursor(), *checked, *col)
             }
+            DeferedCommand::DropDown(checked, col) => {
+                self.draw_dropdown(self.last_cursor(), *checked, *col)
+            }
             DeferedCommand::Label(r, label, col, coltxt) => {
                 self.render_label(*r, label, *col, *coltxt)
             }
@@ -467,6 +476,10 @@ impl Context {
     }
     fn draw_checkbox(&mut self, p: Pos, checked: bool, col: Color) {
         self.commands.push(Command::CheckBox(p, checked, col));
+    }
+    fn draw_dropdown(&mut self, p: Pos, checked: bool, col: Color) {
+        self.commands
+            .push(Command::DropDown(Pos { x: p.x + 1, y: p.y }, checked, col));
     }
     fn draw_frame(&mut self, r: Rect, title: &str, col: Color, coltxt: Color) {
         self.commands
@@ -626,6 +639,9 @@ mod tests {
         fn checkbox(&mut self, pos: ui::Pos, _checked: bool, _col: ui::Color) {
             self.character[pos.x as usize][pos.y as usize] = '5';
         }
+        fn dropdown(&mut self, pos: ui::Pos, _checked: bool, _col: ui::Color) {
+            self.character[pos.x as usize][pos.y as usize] = '>';
+        }
     }
 
     #[test]
@@ -643,7 +659,7 @@ mod tests {
         let mut rend = AsciiRenderer::new();
         let mut ctx = ui::Context::new();
         ctx.begin();
-        ctx.vbox_begin("0");
+        ctx.vbox_begin("0", 2);
         ctx.label("1");
         ctx.label("2");
         ctx.vbox_end();
@@ -670,7 +686,7 @@ mod tests {
         let mut rend = AsciiRenderer::new();
         let mut ctx = ui::Context::new();
         ctx.begin();
-        ctx.vbox_begin("0").margin(1);
+        ctx.vbox_begin("0", 2).margin(1);
         ctx.label("1");
         ctx.label("2");
         ctx.vbox_end();
@@ -684,7 +700,7 @@ mod tests {
         let mut rend = AsciiRenderer::new();
         let mut ctx = ui::Context::new();
         ctx.begin();
-        ctx.vbox_begin("0").padding(1);
+        ctx.vbox_begin("0", 2).padding(1);
         ctx.label("1");
         ctx.label("2");
         ctx.vbox_end();

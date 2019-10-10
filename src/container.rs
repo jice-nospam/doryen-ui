@@ -1,4 +1,4 @@
-use crate::{ColorCode, Context, Coord, DeferedCommand, LayoutMode};
+use crate::{ColorCode, Context, Coord, DeferedCommand, LayoutMode, TextAlign};
 
 impl Context {
     // =======================================================
@@ -57,9 +57,53 @@ impl Context {
         width: Coord,
         height: Coord,
     ) -> &mut Self {
-        self.vbox_begin(id).fixed_pos(x, y, width, height)
+        self.vbox_begin(id, height).fixed_pos(x, y, width, height)
     }
     pub fn window_end(&mut self) {
+        self.vbox_end();
+    }
+    /// A vbox with a hide/show header button.
+    pub fn dropdown_panel_begin(
+        &mut self,
+        id: &str,
+        title: &str,
+        open: bool,
+        width: Coord,
+        height: Coord,
+    ) -> &mut Self {
+        let pressed = self
+            .button(id, &format!("  {}", title))
+            .align(TextAlign::Left)
+            .min_width(width)
+            .pressed();
+        let button_id = self.last_id();
+        let on = {
+            let on = self
+                .button_state
+                .entry(button_id)
+                .or_insert(if open { 1 } else { 0 });
+            if pressed {
+                *on = 1 - *on;
+            }
+            *on == 1
+        };
+        let focus = self.focus == button_id;
+        let hover = self.hover == button_id;
+        let fore = self.get_color(if hover {
+            ColorCode::ButtonTextHover
+        } else if focus {
+            ColorCode::ButtonTextFocus
+        } else {
+            ColorCode::ButtonText
+        });
+        self.defered(DeferedCommand::DropDown(on, fore));
+        self.vbox_begin(id, if on { height } else { 0 })
+            .min_width(width);
+        self.active = on;
+        self.pressed = pressed;
+        self
+    }
+    pub fn dropdown_panel_end(&mut self) {
         self.vbox_end();
     }
     /// the frame_window behaves like a frame, but it resets the cursor position
@@ -93,10 +137,10 @@ impl Context {
     /// 22
     /// PP
     /// 33
-    pub fn vbox_begin(&mut self, id: &str) -> &mut Self {
+    pub fn vbox_begin(&mut self, id: &str, height: Coord) -> &mut Self {
         self.try_commit();
         self.prefix_id(id);
-        self.new_layout(LayoutMode::Vertical)
+        self.new_layout(LayoutMode::Vertical).min_height(height)
     }
     pub fn vbox_end(&mut self) {
         self.end_container();
@@ -125,7 +169,7 @@ impl Context {
     pub fn frame_begin(&mut self, id: &str, title: &str, width: Coord, height: Coord) -> &mut Self {
         let back = self.get_color(ColorCode::Background);
         let fore = self.get_color(ColorCode::Text);
-        self.vbox_begin(id)
+        self.vbox_begin(id, height)
             .fixed_size(width, height)
             .margin(1)
             .defered(DeferedCommand::Frame(title.to_owned(), back, fore))

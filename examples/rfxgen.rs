@@ -31,7 +31,7 @@ impl RfxGen {
     }
     fn right_column(&mut self) {
         self.ctx
-            .vbox_begin("right_column")
+            .vbox_begin("right_column", 17)
             .margin(1)
             .padding(1)
             .min_width(16);
@@ -96,7 +96,7 @@ impl RfxGen {
         self.ctx.flexgrid_end();
     }
     fn left_column(&mut self) {
-        self.ctx.vbox_begin("left_col").padding(1).min_width(20);
+        self.ctx.vbox_begin("left_col", 13).padding(1).min_width(20);
         {
             self.ctx.label("rFXGen v2.1");
             self.ctx

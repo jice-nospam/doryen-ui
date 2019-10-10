@@ -21,28 +21,32 @@ impl Showcase {
     fn build_ui(&mut self) {
         let ctx = &mut self.ctx;
         ctx.begin();
-        ctx.frame_begin("buttons", "buttons", 17, 6);
         if ctx
-            .button("button", "  button")
-            .align(ui::TextAlign::Left)
-            .pressed()
+            .dropdown_panel_begin("dropdown", "dropdown", true, 17, 4)
+            .active()
         {
-            self.button_popup = true;
-        }
-        if self.button_popup {
-            ctx.popup_begin("button_msg", "button pressed!", 20, 10, 19, 3);
-            if ctx.popup_end() {
-                self.button_popup = false;
+            if ctx
+                .button("button", "  button")
+                .align(ui::TextAlign::Left)
+                .pressed()
+            {
+                self.button_popup = true;
             }
+            if self.button_popup {
+                ctx.popup_begin("button_msg", "button pressed!", 20, 10, 19, 3);
+                if ctx.popup_end() {
+                    self.button_popup = false;
+                }
+            }
+            ctx.toggle("toggle", "  toggle", Default::default())
+                .align(ui::TextAlign::Left);
+            ctx.checkbox("checkbox", "checkbox", false);
+            ctx.list_button_begin("list_button");
+            ctx.list_button_item("list value 1", ui::TextAlign::Center);
+            ctx.list_button_item("list value 2", ui::TextAlign::Center);
+            ctx.list_button_end(true);
         }
-        ctx.toggle("toggle", "  toggle", Default::default())
-            .align(ui::TextAlign::Left);
-        ctx.checkbox("checkbox", "checkbox", false);
-        ctx.list_button_begin("list_button");
-        ctx.list_button_item("list value 1", ui::TextAlign::Center);
-        ctx.list_button_item("list value 2", ui::TextAlign::Center);
-        ctx.list_button_end(true);
-        ctx.frame_end();
+        ctx.dropdown_panel_end();
         ctx.frame_begin("margin", "margin", 17, 7).margin(2);
         ctx.toggle("margin", "margin", Default::default())
             .align(ui::TextAlign::Left);

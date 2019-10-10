@@ -30,7 +30,6 @@ impl Context {
         self
     }
 
-    /// same as toggle button, but displays a checkbox left to the label
     /// returns (checkbox_status, status_has_changed_this_frame)
     pub fn checkbox(&mut self, id: &str, label: &str, initial_state: bool) -> &mut Self {
         let padded_label = "  ".to_owned() + label;
@@ -46,11 +45,11 @@ impl Context {
             if pressed {
                 *checked = 1 - *checked;
             }
-            *checked
+            *checked == 1
         };
         let fore = self.get_color(ColorCode::Text);
-        self.defered(DeferedCommand::CheckBox(checked == 1, fore));
-        self.active = checked == 1;
+        self.defered(DeferedCommand::CheckBox(checked, fore));
+        self.active = checked;
         self
     }
 
@@ -73,7 +72,6 @@ impl Context {
         self.cur_toggle_group = group;
     }
     /// a button that switches between active/inactive when clicked.
-    /// returns (button_status, status_has_changed_this_frame)
     pub fn toggle(&mut self, id: &str, label: &str, active: bool) -> &mut Self {
         self.try_commit();
         let id = self.generate_id(id);

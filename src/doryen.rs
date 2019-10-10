@@ -39,6 +39,9 @@ pub fn render_doryen(con: &mut Console, ctx: &mut Context) {
             Command::CheckBox(pos, checked, col) => {
                 render_checkbox(con, *pos, *checked, *col);
             }
+            Command::DropDown(pos, open, col) => {
+                render_dropdown(con, *pos, *open, *col);
+            }
             Command::Progress(r, value, back, fore) => {
                 render_progress(con, *r, *value, *back, *fore);
             }
@@ -82,6 +85,10 @@ fn render_text_color(con: &mut Console, pos: Pos, txt: &str, align: TextAlign) {
 }
 fn render_checkbox(con: &mut Console, pos: Pos, checked: bool, col: Color) {
     con.ascii(pos.x, pos.y, if checked { 225 } else { 224 });
+    con.fore(pos.x, pos.y, col);
+}
+fn render_dropdown(con: &mut Console, pos: Pos, open: bool, col: Color) {
+    con.ascii(pos.x, pos.y, if open { 31 } else { 16 });
     con.fore(pos.x, pos.y, col);
 }
 fn render_frame(con: &mut Console, txt: &str, r: &Rect, col: Color, txtcol: Color) {
