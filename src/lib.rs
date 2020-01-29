@@ -363,9 +363,6 @@ impl Context {
     fn last_cursor(&self) -> Pos {
         self.layouts.last().unwrap().last_cursor()
     }
-    fn last_area(&self) -> Rect {
-        self.layouts.last().unwrap().area()
-    }
 
     // =======================================================
     //
