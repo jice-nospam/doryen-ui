@@ -108,6 +108,9 @@ impl Showcase {
         );
         self.pgbar_value = (self.pgbar_value + 0.01) % 1.0;
         ctx.frame_end();
+        ctx.frame_begin("txtbox", "text box", 17, 3);
+        ctx.textbox("txtbox1", 15, None, Some("type here"));
+        ctx.frame_end();
         ctx.end();
     }
 }

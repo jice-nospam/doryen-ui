@@ -10,6 +10,7 @@ mod color;
 mod container;
 mod layout;
 mod slider;
+mod text;
 
 #[cfg(feature = "doryen")]
 pub use doryen::*;
@@ -99,6 +100,15 @@ pub enum Command {
     Progress(Rect, f32, Color, Color),
 }
 
+pub enum SpecialKey {
+    Backspace,
+    Delete,
+    Left,
+    Right,
+    Home,
+    End,
+}
+
 pub trait Renderer {
     fn line(&mut self, p1: Pos, p2: Pos, col: Color);
     fn rectangle(&mut self, rect: &Rect, col: Color);
@@ -115,15 +125,27 @@ pub const MOUSE_BUTTON_RIGHT: usize = 2;
 pub const MOUSE_BUTTON_MIDDLE: usize = 4;
 
 #[derive(Default)]
+pub struct TextBoxState {
+    bkgnd_text: String,
+    value: String,
+    offset: usize,
+    cursor_pos: usize,
+}
+
+#[derive(Default)]
 pub struct Context {
     color_manager: ColorManager,
     // id generation
     last_id: Id,
     id_prefix: Vec<String>,
+    // timer for animations
+    timer: usize,
     // user input data
     mouse_pos: (f32, f32),
     mouse_pressed: usize,
     mouse_down: usize,
+    text_input: String,
+    special_keys: Vec<SpecialKey>,
     // rendering
     commands: Vec<Command>,
     layouts: Vec<Layout>,
@@ -135,6 +157,7 @@ pub struct Context {
     hover: Id,
     button_state: HashMap<Id, i32>,
     slider_state: HashMap<Id, f32>,
+    textbox_state: HashMap<Id, TextBoxState>,
     toggle_group: HashMap<usize, HashSet<Id>>,
     cur_toggle_group: usize,
     pressed: bool,
@@ -183,6 +206,9 @@ impl Context {
     pub fn input_mouse_up(&mut self, button: usize) {
         self.mouse_down &= !button;
     }
+    pub fn input_text(&mut self, text: String) {
+        self.text_input = text;
+    }
     // =======================================================
     //
     // Core
@@ -198,6 +224,7 @@ impl Context {
         self.mouse_pressed = 0;
         self.last_id = NULL_ID.to_owned();
         self.id_prefix.clear();
+        self.timer += 1;
         //println!("================");
     }
     pub fn render(&mut self, renderer: &mut impl Renderer) {

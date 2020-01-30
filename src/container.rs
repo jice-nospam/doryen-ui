@@ -12,15 +12,12 @@ impl Context {
     /// Example : 2,2,2,1
     /// 1122
     /// 3344
-    /// Margin is around the container :
-    /// MMMMMM
-    /// M1122M
-    /// M3344M
-    /// MMMMMM
-    /// Padding is between the cells :
-    /// 11P22
-    /// PPPPP
-    /// 33P44
+    /// Margin (#) is around the container, padding (.) is between the cells  :
+    /// #######
+    /// #11.22#
+    /// #.....#
+    /// #33.44#
+    /// #######
     pub fn grid_begin(
         &mut self,
         id: &str,

@@ -1,4 +1,4 @@
-use crate::{Command, Context, Coord, Pos, Rect, MOUSE_BUTTON_LEFT};
+use crate::{Command, Context, Coord, Pos, Rect, SpecialKey, MOUSE_BUTTON_LEFT};
 use doryen_rs::{Color, Console, DoryenApi, TextAlign, CHAR_LINE_H};
 
 pub fn text_color_len(txt: &str) -> usize {
@@ -13,6 +13,26 @@ pub fn update_doryen_input_data(api: &mut dyn DoryenApi, ctx: &mut Context) {
         ctx.input_mouse_down(MOUSE_BUTTON_LEFT);
     } else if input.mouse_button_released(0) {
         ctx.input_mouse_up(MOUSE_BUTTON_LEFT);
+    }
+    let text = input.text();
+    ctx.input_text(text);
+    if input.key_pressed("Backspace") {
+        ctx.special_keys.push(SpecialKey::Backspace);
+    }
+    if input.key_pressed("Delete") {
+        ctx.special_keys.push(SpecialKey::Delete);
+    }
+    if input.key_pressed("ArrowLeft") {
+        ctx.special_keys.push(SpecialKey::Left);
+    }
+    if input.key_pressed("ArrowRight") {
+        ctx.special_keys.push(SpecialKey::Right);
+    }
+    if input.key_pressed("Home") {
+        ctx.special_keys.push(SpecialKey::Home);
+    }
+    if input.key_pressed("End") {
+        ctx.special_keys.push(SpecialKey::End);
     }
 }
 
