@@ -1,3 +1,5 @@
+use unicode_segmentation::UnicodeSegmentation;
+
 use crate::{
     ColorCode, Context, Coord, DeferedCommand, SpecialKey, TextBoxState, MOUSE_BUTTON_LEFT,
 };
@@ -32,16 +34,17 @@ impl Context {
             });
             if focus {
                 for k in self.special_keys.drain(0..) {
+                    let slen = state.value.graphemes(true).count();
                     match k {
                         SpecialKey::Backspace => {
                             if state.cursor_pos > 0 {
-                                state.value.remove(state.cursor_pos - 1);
+                                state.value = remove_grapheme(&state.value, state.cursor_pos - 1);
                                 state.cursor_pos -= 1;
                             }
                         }
                         SpecialKey::Delete => {
-                            if state.cursor_pos < state.value.len() {
-                                state.value.remove(state.cursor_pos);
+                            if state.cursor_pos < slen {
+                                state.value = remove_grapheme(&state.value, state.cursor_pos);
                             }
                         }
                         SpecialKey::Left => {
@@ -50,12 +53,12 @@ impl Context {
                             }
                         }
                         SpecialKey::Right => {
-                            if state.cursor_pos + 1 < state.value.len() {
+                            if state.cursor_pos < slen {
                                 state.cursor_pos += 1;
                             }
                         }
                         SpecialKey::End => {
-                            state.cursor_pos = state.value.len();
+                            state.cursor_pos = slen;
                         }
                         SpecialKey::Home => {
                             state.cursor_pos = 0;
@@ -64,7 +67,7 @@ impl Context {
                 }
                 if !self.text_input.is_empty() {
                     state.value = insert_text(&state.value, state.cursor_pos, &self.text_input);
-                    state.cursor_pos += self.text_input.len();
+                    state.cursor_pos += self.text_input.graphemes(true).count();
                 }
                 state.offset = state.offset.min(state.cursor_pos);
                 if state.cursor_pos >= r.w as usize {
@@ -99,40 +102,68 @@ impl Context {
         if focus && self.timer % CURSOR_DELAY < CURSOR_DELAY / 2 {
             value = add_cursor(&value, cursor);
         }
-        self.defered(DeferedCommand::Label(
-            r,
-            value[offset..].to_owned(),
-            back,
-            fore,
-        ));
+        if offset > 0 {
+            value = value
+                .graphemes(true)
+                .skip(offset)
+                .collect::<Vec<&str>>()
+                .join("");
+        }
+        self.defered(DeferedCommand::Label(r, value, back, fore));
         self
     }
 }
 
 fn add_cursor(value: &str, cursor: usize) -> String {
     let head = if cursor > 0 && !value.is_empty() {
-        &value[0..cursor]
+        value
+            .graphemes(true)
+            .take(cursor)
+            .collect::<Vec<&str>>()
+            .join("")
     } else {
-        ""
+        String::new()
     };
     let tail = if cursor + 1 < value.len() {
-        &value[cursor + 1..]
+        value
+            .graphemes(true)
+            .skip(cursor + 1)
+            .collect::<Vec<&str>>()
+            .join("")
     } else {
-        ""
+        String::new()
     };
-    head.to_owned() + "_" + tail
+    head.to_owned() + "_" + &tail
 }
 
 fn insert_text(value: &str, cursor: usize, txt: &str) -> String {
     let head = if cursor > 0 && !value.is_empty() {
-        &value[0..cursor]
+        value
+            .graphemes(true)
+            .take(cursor)
+            .collect::<Vec<&str>>()
+            .join("")
     } else {
-        ""
+        String::new()
     };
     let tail = if cursor < value.len() {
-        &value[cursor..]
+        value
+            .graphemes(true)
+            .skip(cursor)
+            .collect::<Vec<&str>>()
+            .join("")
     } else {
-        ""
+        String::new()
     };
-    head.to_owned() + txt + tail
+    head.to_owned() + txt + &tail
+}
+
+fn remove_grapheme(value: &str, pos: usize) -> String {
+    let ret: String = value
+        .graphemes(true)
+        .enumerate()
+        .filter(|(i, _)| *i != pos)
+        .map(|(_, v)| v)
+        .collect();
+    ret
 }

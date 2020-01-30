@@ -11,6 +11,7 @@ keywords = ["roguelike", "console", "imgui", "gui", "immediate"]
 
 [dependencies]
 doryen-rs={ version="1.2.*", optional=true }
+unicode-segmentation = "1.6.0"
 
 [features]
 default=["doryen"]

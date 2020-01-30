@@ -1,3 +1,5 @@
+extern crate unicode_segmentation;
+
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
