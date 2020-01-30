@@ -1,7 +1,7 @@
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
-    ColorCode, Context, Coord, DeferedCommand, SpecialKey, TextBoxState, MOUSE_BUTTON_LEFT,
+    ColorCode, Context, Coord, DeferedCommand, Id, SpecialKey, TextBoxState, MOUSE_BUTTON_LEFT,
 };
 
 const CURSOR_DELAY: usize = 10;
@@ -25,7 +25,49 @@ impl Context {
         self.update_control(id, &r, false);
         let focus = self.focus == id;
         let hover = self.hover == id;
-        let (current_value, bkgnd_text, cursor, offset) = {
+        let (current_value, bkgnd_text, cursor, offset) =
+            self.update_text_state(id, bkgnd_text, default_value, focus, r.w as usize);
+        self.pressed = hover && self.mouse_pressed == MOUSE_BUTTON_LEFT;
+        let background_code = if hover || focus {
+            ColorCode::ButtonBackgroundFocus
+        } else {
+            ColorCode::ButtonBackgroundHover
+        };
+        let foreground_code = if current_value.is_empty() {
+            ColorCode::ButtonTextDisabled
+        } else {
+            ColorCode::ButtonText
+        };
+        let back = self.get_color(background_code);
+        let fore = self.get_color(foreground_code);
+        let mut value = if current_value.is_empty() && !focus {
+            bkgnd_text
+        } else {
+            current_value
+        };
+        if focus && self.timer % CURSOR_DELAY < CURSOR_DELAY / 2 {
+            value = add_cursor(&value, cursor);
+        }
+        if offset > 0 {
+            value = value
+                .graphemes(true)
+                .skip(offset)
+                .collect::<Vec<&str>>()
+                .join("");
+        }
+        self.defered(DeferedCommand::Label(r, value, back, fore));
+        self
+    }
+    /// returns (value, bkgnd_text, cursor_pos, offset)
+    fn update_text_state(
+        &mut self,
+        id: Id,
+        bkgnd_text: Option<&str>,
+        default_value: Option<&str>,
+        focus: bool,
+        width: usize,
+    ) -> (String, String, usize, usize) {
+        {
             let state = self.textbox_state.entry(id).or_insert(TextBoxState {
                 bkgnd_text: bkgnd_text.map_or(String::new(), |t| t.to_owned()),
                 value: default_value.map_or(String::new(), |t| t.to_owned()),
@@ -70,8 +112,8 @@ impl Context {
                     state.cursor_pos += self.text_input.graphemes(true).count();
                 }
                 state.offset = state.offset.min(state.cursor_pos);
-                if state.cursor_pos >= r.w as usize {
-                    state.offset = state.offset.max(state.cursor_pos + 1 - r.w as usize);
+                if state.cursor_pos >= width {
+                    state.offset = state.offset.max(state.cursor_pos + 1 - width);
                 }
             }
             (
@@ -80,37 +122,7 @@ impl Context {
                 state.cursor_pos,
                 state.offset,
             )
-        };
-        self.pressed = hover && self.mouse_pressed == MOUSE_BUTTON_LEFT;
-        let background_code = if hover || focus {
-            ColorCode::ButtonBackgroundFocus
-        } else {
-            ColorCode::ButtonBackgroundHover
-        };
-        let foreground_code = if current_value.is_empty() {
-            ColorCode::ButtonTextDisabled
-        } else {
-            ColorCode::ButtonText
-        };
-        let back = self.get_color(background_code);
-        let fore = self.get_color(foreground_code);
-        let mut value = if current_value.is_empty() && !focus {
-            bkgnd_text
-        } else {
-            current_value
-        };
-        if focus && self.timer % CURSOR_DELAY < CURSOR_DELAY / 2 {
-            value = add_cursor(&value, cursor);
         }
-        if offset > 0 {
-            value = value
-                .graphemes(true)
-                .skip(offset)
-                .collect::<Vec<&str>>()
-                .join("");
-        }
-        self.defered(DeferedCommand::Label(r, value, back, fore));
-        self
     }
 }
 
