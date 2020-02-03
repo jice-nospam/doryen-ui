@@ -251,6 +251,13 @@ impl Context {
         self.pressed = false;
         r
     }
+    pub fn text(&self, id: Id) -> &str {
+        if let Some(state) = self.textbox_state.get(&id) {
+            &state.value
+        } else {
+            unreachable!()
+        }
+    }
     pub fn active(&mut self) -> bool {
         let r = self.active;
         self.active = false;

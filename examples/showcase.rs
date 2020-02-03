@@ -110,6 +110,8 @@ impl Showcase {
         ctx.frame_end();
         ctx.frame_begin("txtbox", "text box", 17, 3);
         ctx.textbox("txtbox1", 15, None, Some("type here"));
+        // how to get the textbox value
+        let _ = ctx.text(ctx.last_id());
         ctx.frame_end();
         ctx.end();
     }
