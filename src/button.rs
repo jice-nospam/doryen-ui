@@ -119,12 +119,12 @@ impl Context {
     // =======================================================
 
     /// a button that cycles over a list of values when clicked
-    pub fn list_button_begin(&mut self, id: &str) {
+    pub fn list_button_begin(&mut self, id: &str, default_value: i32) {
         self.try_commit();
         let id = self.generate_id(id);
         self.list_button_index = 0;
         self.list_button_width = 0;
-        self.button_state.entry(id).or_insert(0);
+        self.button_state.entry(id).or_insert(default_value);
     }
 
     /// add a new item in the list of values

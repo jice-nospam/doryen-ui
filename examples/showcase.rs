@@ -41,7 +41,7 @@ impl Showcase {
             ctx.toggle("toggle", "  toggle", Default::default())
                 .align(ui::TextAlign::Left);
             ctx.checkbox("checkbox", "checkbox", false);
-            ctx.list_button_begin("list_button");
+            ctx.list_button_begin("list_button", 1);
             ctx.list_button_item("list value 1", ui::TextAlign::Center);
             ctx.list_button_item("list value 2", ui::TextAlign::Center);
             ctx.list_button_end(true);
