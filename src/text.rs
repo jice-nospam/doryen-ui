@@ -58,6 +58,14 @@ impl Context {
         self.defered(DeferedCommand::Label(r, value, back, fore));
         self
     }
+    /// change the value of a textbox. Resets cursor position to 0.
+    pub fn set_textbox_value(&mut self, textbox_id: Id, value: &str) {
+        if let Some(ref mut state) = self.textbox_state.get_mut(&textbox_id) {
+            state.value = value.to_owned();
+            state.cursor_pos = 0;
+            state.offset = 0;
+        }
+    }
     /// returns (value, bkgnd_text, cursor_pos, offset)
     fn update_text_state(
         &mut self,

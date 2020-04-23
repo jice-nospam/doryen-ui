@@ -108,10 +108,15 @@ impl Showcase {
         );
         self.pgbar_value = (self.pgbar_value + 0.01) % 1.0;
         ctx.frame_end();
-        ctx.frame_begin("txtbox", "text box", 17, 3);
+        ctx.frame_begin("txtbox", "text box", 17, 4);
         ctx.textbox("txtbox1", 15, None, Some("type here"));
+        let textbox_id = ctx.last_id();
         // how to get the textbox value
-        let _ = ctx.text(ctx.last_id());
+        let _ = ctx.text(textbox_id);
+        // how to programmatically change the textbox value
+        if ctx.button("txtboxbutton", "set value").pressed() {
+            ctx.set_textbox_value(textbox_id, "a value");
+        }
         ctx.frame_end();
         ctx.end();
     }
